@@ -4,18 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Justificativa de Pedidos</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
   :root{
     --bg:#f4f6f9; --card:#ffffff; --text:#1c2430; --muted:#6b7686; --line:#e2e7ee;
     --accent:#c8102e; --accent-2:#1f6feb; --ok:#1a8f4c; --warn:#d97706; --pend-bg:#fff7ed;
-    --ok-bg:#ecfdf3; --input:#ffffff; --sel:#e8f0fe;
+    --ok-bg:#ecfdf3; --input:#ffffff; --sel:#e8f0fe; --chip:#eef2f7;
   }
   @media (prefers-color-scheme: dark){
     :root{
       --bg:#0f141a; --card:#171e27; --text:#e6ebf2; --muted:#93a0b2; --line:#263040;
       --accent:#ef4444; --accent-2:#4c8dff; --ok:#34d399; --warn:#f59e0b; --pend-bg:#2a1f12;
-      --ok-bg:#10261c; --input:#0f141a; --sel:#1b2a44;
+      --ok-bg:#10261c; --input:#0f141a; --sel:#1b2a44; --chip:#1f2833;
     }
   }
   *{box-sizing:border-box}
@@ -23,57 +23,60 @@
   header{background:var(--card);border-bottom:3px solid var(--accent);padding:14px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
   header h1{margin:0;font-size:20px}
   header p{margin:2px 0 0;color:var(--muted);font-size:12px}
-  main{max-width:1500px;margin:0 auto;padding:16px}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  main{max-width:1600px;margin:0 auto;padding:16px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
-  .card h2{font-size:15px;margin:0 0 10px}
+  .card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   textarea,input,select{font:inherit;color:var(--text);background:var(--input);border:1px solid var(--line);border-radius:6px;padding:7px 9px}
   textarea{width:100%;min-height:110px;font-family:Consolas,monospace;font-size:12px;resize:vertical;white-space:pre;overflow:auto}
   button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:6px;padding:7px 12px;cursor:pointer;white-space:nowrap}
   button:hover{border-color:var(--accent-2)}
   button.primary{background:var(--accent-2);border-color:var(--accent-2);color:#fff}
   button.danger{color:var(--accent);border-color:var(--accent)}
-  button.small{padding:3px 8px;font-size:12px}
+  button.small{padding:4px 9px;font-size:12px}
   .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
   .muted{color:var(--muted);font-size:12px}
-  .cargas{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;margin-top:10px}
-  .carga{border:1px solid var(--line);border-left:5px solid var(--accent-2);border-radius:8px;padding:10px 12px;cursor:pointer}
-  .carga.ativa{background:var(--sel);border-color:var(--accent-2)}
-  .carga .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
-  .carga .id{font-size:18px;font-weight:700}
-  .carga dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:8px 0 0;font-size:12px}
-  .carga dt{color:var(--muted)} .carga dd{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .carga .fora{margin-top:8px;font-size:12px;font-weight:600;color:var(--warn)}
-  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}
+  .kpis{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:14px}
   .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
-  .kpi .v{font-size:24px;font-weight:700}
-  .kpi .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .kpi .v{font-size:22px;font-weight:700;white-space:nowrap}
+  .kpi .l{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
   .kpi.ok .v{color:var(--ok)} .kpi.pend .v{color:var(--warn)}
   .progress{height:6px;background:var(--line);border-radius:4px;margin-top:8px;overflow:hidden}
   .progress>div{height:100%;background:var(--ok)}
-  .bars{display:grid;gap:6px}
-  .bar{display:grid;grid-template-columns:260px 1fr 50px;gap:8px;align-items:center;font-size:13px}
-  .bar .track{background:var(--line);border-radius:4px;height:14px;overflow:hidden}
+  .bars{display:grid;gap:5px}
+  .bar{display:grid;grid-template-columns:200px 1fr 120px;gap:8px;align-items:center;font-size:13px;padding:2px 4px;border-radius:4px}
+  .bar.click{cursor:pointer} .bar.click:hover{background:var(--sel)} .bar.on{background:var(--sel);font-weight:600}
+  .bar .lab{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bar .track{background:var(--line);border-radius:4px;height:14px;overflow:hidden;display:flex}
   .bar .fill{height:100%;background:var(--accent-2)}
-  .bar .n{text-align:right;font-weight:600}
-  .tablewrap{overflow:auto;max-height:65vh;border:1px solid var(--line);border-radius:8px}
+  .bar .fill.ok{background:var(--ok)} .bar .fill.pend{background:var(--warn)}
+  .bar .n{text-align:right;font-variant-numeric:tabular-nums}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .chip{background:var(--chip);border:1px solid var(--line);border-radius:14px;padding:4px 10px;font-size:12px;cursor:pointer;user-select:none}
+  .chip.on{background:var(--accent-2);border-color:var(--accent-2);color:#fff}
+  .chip b{font-weight:700;margin-left:4px}
+  .tablewrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px}
   table{border-collapse:collapse;width:100%;font-size:13px}
   th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle;white-space:nowrap}
-  td.num,th.num{text-align:right}
-  th{position:sticky;top:0;background:var(--card);z-index:2;font-size:11px;text-transform:uppercase;color:var(--muted)}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  th{position:sticky;top:0;background:var(--card);z-index:2;font-size:11px;text-transform:uppercase;color:var(--muted);cursor:pointer}
+  th.nosort{cursor:default}
   tr.pend td{background:var(--pend-bg)}
   tr.ok td{background:var(--ok-bg)}
   td select{min-width:220px}
-  td input.obs{min-width:220px;width:100%}
-  td.instr{max-width:260px;overflow:hidden;text-overflow:ellipsis}
+  td input.obs{min-width:200px;width:100%}
+  td.instr{max-width:280px;overflow:hidden;text-overflow:ellipsis}
   .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
   .badge.ok{background:var(--ok);color:#fff}
   .badge.pend{background:var(--warn);color:#fff}
   .sep{width:1px;height:26px;background:var(--line);margin:0 4px}
+  .bulk{background:var(--sel);border:1px solid var(--accent-2);border-radius:8px;padding:8px 10px;margin-bottom:10px}
+  .grp td select{min-width:240px}
   details summary{cursor:pointer;font-weight:600}
   .toast{position:fixed;bottom:18px;right:18px;background:var(--text);color:var(--bg);padding:10px 14px;border-radius:8px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
   .toast.show{opacity:1}
-  @media (max-width:900px){.grid2{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.bar{grid-template-columns:140px 1fr 40px}}
+  @media (max-width:1100px){.kpis{grid-template-columns:repeat(4,1fr)}.grid2{grid-template-columns:1fr}}
+  @media (max-width:700px){.kpis{grid-template-columns:repeat(2,1fr)}.bar{grid-template-columns:120px 1fr 80px}}
 </style>
 </head>
 <body>
@@ -81,72 +84,97 @@
 <header>
   <div>
     <h1>Justificativa de Pedidos fora da Roteirização</h1>
-    <p>Cole a carga do RoadNet, depois os clientes que vão ficar fora, e informe o motivo. Os dados ficam salvos neste navegador.</p>
+    <p id="subtitulo">Cole os pedidos não atendidos do RoadNet, justifique e gere a planilha com dashboard.</p>
   </div>
   <div class="row">
     <button id="btnCopiar">Copiar p/ Excel</button>
-    <button id="btnExportar" class="primary">Exportar Excel</button>
+    <button id="btnExportar" class="primary">Gerar planilha (dashboard)</button>
     <button id="btnLimpar" class="danger">Limpar tudo</button>
   </div>
 </header>
 
 <main>
+  <section class="card">
+    <h2>1. Colar pedidos não atendidos</h2>
+    <textarea id="paste" placeholder="Cole aqui com o cabeçalho: FILIAL, Estado da Ordem, Cliente, Descrição da rota, Instruções especiais, Número do pedido, Entrega Valor, Entrega Peso..."></textarea>
+    <div class="row" style="margin-top:8px">
+      <label>Modo:
+        <select id="modo">
+          <option value="replace">Substituir a lista (mantém justificativas de pedidos repetidos)</option>
+          <option value="add">Adicionar à lista atual</option>
+        </select>
+      </label>
+      <button id="btnCarregar" class="primary">Carregar pedidos</button>
+      <span id="pasteInfo" class="muted"></span>
+    </div>
+  </section>
+
+  <section class="kpis">
+    <div class="kpi"><div class="l">Pedidos</div><div class="v" id="kPed">0</div></div>
+    <div class="kpi"><div class="l">Clientes</div><div class="v" id="kCli">0</div></div>
+    <div class="kpi"><div class="l">Municípios</div><div class="v" id="kMun">0</div></div>
+    <div class="kpi ok"><div class="l">Justificados</div><div class="v" id="kOk">0</div></div>
+    <div class="kpi pend"><div class="l">Pendentes</div><div class="v" id="kPend">0</div><div class="progress"><div id="kBar" style="width:0%"></div></div></div>
+    <div class="kpi"><div class="l">Peso (kg)</div><div class="v" id="kPeso">0</div></div>
+    <div class="kpi"><div class="l">Valor (R$)</div><div class="v" id="kValor">0</div></div>
+  </section>
+
   <div class="grid2">
     <section class="card">
-      <h2>1. Colar a carga (rota)</h2>
-      <textarea id="pasteCarga" placeholder="Cole a(s) linha(s) da rota do RoadNet com o cabeçalho (ID, Cor, Descrição, Número de paradas...)"></textarea>
-      <div class="row" style="margin-top:8px">
-        <button id="btnCarga" class="primary">Adicionar carga</button>
-        <span id="infoCarga" class="muted"></span>
-      </div>
+      <h2>Por município <span class="muted">(clique para filtrar · verde = justificado)</span></h2>
+      <div class="bars" id="barMun"></div>
     </section>
-
     <section class="card">
-      <h2>2. Colar os clientes que ficarão fora</h2>
-      <textarea id="pasteCli" placeholder="Cole as paradas do RoadNet com o cabeçalho (Município, Seqüência, Cliente, DESCRICAOROTA...). As linhas do CD são ignoradas."></textarea>
-      <div class="row" style="margin-top:8px">
-        <label>Carga: <select id="selCarga"></select></label>
-        <button id="btnCli" class="primary">Adicionar clientes</button>
-        <span id="infoCli" class="muted"></span>
-      </div>
+      <h2>Por motivo</h2>
+      <div class="bars" id="barMot"></div>
     </section>
   </div>
 
   <section class="card">
-    <h2>Cargas <span class="muted">(clique para filtrar os clientes da carga)</span></h2>
-    <div class="cargas" id="cargas"></div>
-  </section>
-
-  <section class="kpis">
-    <div class="kpi"><div class="l">Clientes fora</div><div class="v" id="kTotal">0</div></div>
-    <div class="kpi ok"><div class="l">Justificados</div><div class="v" id="kOk">0</div></div>
-    <div class="kpi pend"><div class="l">Pendentes</div><div class="v" id="kPend">0</div><div class="progress"><div id="kBar" style="width:0%"></div></div></div>
-    <div class="kpi"><div class="l">Peso fora (kg)</div><div class="v" id="kPeso">0</div></div>
-    <div class="kpi"><div class="l">Valor fora (R$)</div><div class="v" id="kValor">0</div></div>
+    <h2>2. Justificar em massa por grupo
+      <select id="grpBy">
+        <option value="cidade">por Município</option>
+        <option value="cliente">por Cliente</option>
+        <option value="codrota">por Cód. rota</option>
+        <option value="termino">por Data de término</option>
+      </select>
+      <label class="muted"><input type="checkbox" id="grpSobrescrever"> sobrescrever já justificados</label>
+    </h2>
+    <p class="muted" style="margin:-4px 0 8px">Respeita os filtros da tabela abaixo. Escolha o motivo do grupo e clique em Aplicar: todos os pedidos daquele grupo recebem a justificativa.</p>
+    <div class="tablewrap" style="max-height:40vh">
+      <table class="grp">
+        <thead id="grpHead"></thead>
+        <tbody id="grpBody"></tbody>
+      </table>
+    </div>
   </section>
 
   <section class="card">
-    <h2>Resumo por motivo</h2>
-    <div class="bars" id="resumo"><span class="muted">Nenhum cliente justificado ainda.</span></div>
-  </section>
-
-  <section class="card">
-    <h2>3. Justificar</h2>
+    <h2>3. Pedidos</h2>
+    <div class="chips" id="chipsMun"></div>
     <div class="row" style="margin-bottom:10px">
-      <input id="busca" placeholder="Buscar cliente, bairro, instrução..." style="min-width:230px">
-      <select id="fCarga"></select>
+      <input id="busca" placeholder="Buscar cliente, pedido, instrução (ex.: balsa, congelado)..." style="min-width:280px">
+      <select id="fMun"></select>
+      <select id="fRota"></select>
       <select id="fStatus">
         <option value="">Todos os status</option>
         <option value="pend">Pendentes</option>
         <option value="ok">Justificados</option>
       </select>
       <select id="fMotivo"></select>
+      <button id="btnLimparFiltros" class="small">Limpar filtros</button>
+    </div>
+    <div class="bulk row">
+      <b>Em massa:</b>
+      <button id="btnSelFiltrados" class="small">Selecionar todos os filtrados</button>
+      <button id="btnSelPend" class="small">Selecionar pendentes filtrados</button>
+      <button id="btnSelNenhum" class="small">Limpar seleção</button>
       <span class="sep"></span>
-      <span class="muted"><b id="nSel">0</b> selecionado(s)</span>
+      <span><b id="nSel">0</b> selecionado(s)</span>
       <select id="bulkMotivo"></select>
-      <input id="bulkObs" placeholder="Observação em lote (opcional)" style="min-width:190px">
+      <input id="bulkObs" placeholder="Observação (opcional)" style="min-width:200px">
       <button id="btnAplicar" class="primary">Aplicar aos selecionados</button>
-      <button id="btnRemover" class="danger">Remover selecionados</button>
+      <button id="btnRemover" class="danger small">Remover selecionados</button>
     </div>
     <div class="muted" id="infoFiltro" style="margin-bottom:6px"></div>
     <div class="tablewrap">
@@ -160,8 +188,8 @@
   <section class="card">
     <details>
       <summary>Gerenciar lista de motivos</summary>
-      <p class="muted">Um motivo por linha. Clientes já justificados com um motivo removido continuam com ele.</p>
-      <textarea id="motivosTxt" style="min-height:180px;white-space:pre-wrap"></textarea>
+      <p class="muted">Um motivo por linha. Pedidos já justificados com um motivo removido continuam com ele.</p>
+      <textarea id="motivosTxt" style="min-height:200px;white-space:pre-wrap"></textarea>
       <div class="row" style="margin-top:8px">
         <button id="btnSalvarMotivos" class="primary">Salvar motivos</button>
         <button id="btnMotivosPadrao">Restaurar padrão</button>
@@ -174,18 +202,20 @@
 
 <script>
 (function(){
-  const LS_KEY = 'justificativa_pedidos_v2';
+  const LS_KEY = 'justificativa_pedidos_v3';
   const MOTIVOS_PADRAO = [
     'Bloqueio financeiro / crédito',
     'Falta de estoque / corte',
     'Fora do horário de corte',
+    'Aguardando embarque (balsa / barco)',
+    'Interior - sem rota no dia',
+    'Restrição de horário do cliente',
+    'Produto congelado - sem veículo adequado',
     'Cliente fechado / sem recebimento',
-    'Restrição de janela de entrega',
     'Restrição de veículo / acesso',
     'Excede capacidade (peso/volume)',
     'Sem veículo disponível',
     'Endereço / praça inválida',
-    'Fora da rota / região',
     'Reprogramado a pedido do comercial',
     'Reprogramado a pedido do cliente',
     'Pedido duplicado',
@@ -194,40 +224,36 @@
     'Outros'
   ];
 
-  // Cabeçalho padrão da lista de rotas do RoadNet (usado se colar sem cabeçalho)
-  const CARGA_HEADER_PADRAO = ['ID','Cor','Descrição','Número de paradas','Número de Ordens','Entrega Total Peso',
-    'Entrega Total Valor','Capacidade Peso','Equipamento','Trabalhadores','Distância total','Designado para a rota',
-    'Horário Alterado','Criado Por','Horário Criado','Modificado Por','Dispositivo Móvel','Tipos de equipamento',
-    'Sessão de roteirização','Estado'];
-
-  // Colunas exibidas dos clientes: [rótulo, nome da coluna no RoadNet, tipo]
-  const CLI_COLS = [
-    ['Seq', 'Seqüência', 'txt'],
-    ['Cliente', 'Cliente', 'txt'],
-    ['Bairro', 'Município', 'txt'],
-    ['Descr. rota', 'DESCRICAOROTA', 'txt'],
-    ['Ordens', 'Número de Ordens', 'int'],
-    ['Peso (kg)', 'Entrega Total Peso', 'num'],
-    ['Valor (R$)', 'Entrega Total Valor', 'num'],
-    ['Praça', 'CODPRACA', 'txt'],
-    ['RCA', 'CODUSUR', 'txt'],
-    ['Cód. rota', 'CODROTA', 'txt'],
-    ['Instruções', 'Instruções especiais', 'instr'],
-    ['Endereço', 'Linha de endereço 1', 'txt'],
-    ['Data início', 'Data de início', 'txt'],
-    ['Grupo', 'Tipo de Janela de Atendimento', 'txt']
+  // Campos: chave interna, rótulo, nomes possíveis no RoadNet, tipo, mostrar na tela
+  const CAMPOS = [
+    {k:'pedido',   l:'Pedido',               src:['Número do pedido','Numero do pedido','Pedido'], t:'txt',   tela:true},
+    {k:'cliente',  l:'Cliente',              src:['Cliente'],                                       t:'txt',   tela:true},
+    {k:'cidade',   l:'Município',            src:['Cidade','Município'],                            t:'txt',   tela:true},
+    {k:'valor',    l:'Valor (R$)',           src:['Entrega Valor','Entrega Total Valor'],           t:'money', tela:true},
+    {k:'peso',     l:'Peso (kg)',            src:['Entrega Peso','Entrega Total Peso'],             t:'num',   tela:true},
+    {k:'volume',   l:'Volume (m³)',          src:['Entrega Volume','Entrega Total Volume'],         t:'vol',   tela:true},
+    {k:'itens',    l:'Itens',                src:['Itens do pedido'],                               t:'int',   tela:true},
+    {k:'codrota',  l:'Cód. rota',            src:['CODROTA'],                                       t:'txt',   tela:true},
+    {k:'instr',    l:'Instruções especiais', src:['Instruções especiais'],                          t:'instr', tela:true},
+    {k:'termino',  l:'Data término',         src:['Data de término'],                               t:'txt',   tela:true},
+    {k:'descrota', l:'Descrição da rota',    src:['Descrição da rota','DESCRICAOROTA'],             t:'txt',   tela:false},
+    {k:'estado',   l:'Estado da ordem',      src:['Estado da Ordem'],                               t:'txt',   tela:false},
+    {k:'filial',   l:'Filial',               src:['FILIAL'],                                        t:'txt',   tela:false},
+    {k:'tipo',     l:'Tipo',                 src:['Tipo'],                                          t:'txt',   tela:false},
+    {k:'classe',   l:'Classe da ordem',      src:['Classe da Ordem'],                               t:'txt',   tela:false},
+    {k:'sessao',   l:'Sessão',               src:['Sessão de roteirização'],                        t:'txt',   tela:false},
+    {k:'gerenciado',l:'Gerenciado por',      src:['Gerenciado Por'],                                t:'txt',   tela:false}
   ];
+  const NUMERICOS = ['valor','peso','volume','itens'];
 
   // ---------- Estado ----------
-  function novoEstado(){
-    return { cargas: [], clientes: [], motivos: MOTIVOS_PADRAO.slice(), seq: 1, ativa: '' };
-  }
+  function novoEstado(){ return { pedidos: [], motivos: MOTIVOS_PADRAO.slice(), seq: 1 }; }
   function carregar(){
     try{
       const s = JSON.parse(localStorage.getItem(LS_KEY));
-      if(s && Array.isArray(s.clientes) && Array.isArray(s.cargas)){
+      if(s && Array.isArray(s.pedidos)){
         if(!Array.isArray(s.motivos) || !s.motivos.length) s.motivos = MOTIVOS_PADRAO.slice();
-        if(!s.seq) s.seq = s.clientes.length + 1;
+        if(!s.seq) s.seq = s.pedidos.length + 1;
         return s;
       }
     }catch(e){}
@@ -239,6 +265,7 @@
     catch(e){ toast('Não foi possível salvar no navegador'); }
   }
   const selecionados = new Set();
+  let sortKey = 'cidade', sortDir = 1;
 
   // ---------- Util ----------
   const $ = id => document.getElementById(id);
@@ -267,493 +294,722 @@
   }
   function hojeArquivo(){
     const d = new Date(), p = n => String(n).padStart(2,'0');
-    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
   }
   let toastT;
   function toast(msg){
     const t = $('toast'); t.textContent = msg; t.classList.add('show');
-    clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('show'), 2600);
+    clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('show'), 2800);
   }
-  function campo(data, nome){
-    // busca a coluna pelo nome, ignorando acentos/maiúsculas
-    if(!data) return '';
-    if(data[nome] != null) return data[nome];
-    const alvo = norm(nome);
-    for(const k in data){ if(norm(k) === alvo) return data[k]; }
-    return '';
-  }
-  function motorista(c){
-    const t = String(campo(c.data,'Trabalhadores') || '');
-    return t.replace(/<>\s*,?\s*/g,'').trim();
-  }
+  function soma(lista, k){ return lista.reduce((s,p) => s + (Number(p[k]) || 0), 0); }
+  function distintos(lista, k){ return new Set(lista.map(p => p[k]).filter(Boolean)).size; }
 
-  // ---------- Parser genérico (TAB do Excel) ----------
-  function parseLinhas(texto){
+  // ---------- Colagem ----------
+  function parseColagem(texto){
     texto = (texto || '').replace(/\r/g,'');
-    return texto.split('\n').filter(l => l.trim() !== '').map(l => l.split('\t'));
-  }
-  function paraObjetos(header, linhas){
-    return linhas.map(lin => {
-      const o = {};
-      header.forEach((h,i) => { if(h) o[h] = (lin[i] != null ? lin[i] : '').trim(); });
-      return o;
-    });
-  }
-
-  // ---------- Cargas ----------
-  function parseCargas(texto){
-    const linhas = parseLinhas(texto);
-    if(!linhas.length) return [];
-    let header, corpo;
-    const h0 = linhas[0].map(norm);
-    if(h0.includes('id') && (h0.includes('descricao') || h0.includes('equipamento'))){
-      header = linhas[0].map(s => s.trim());
-      corpo = linhas.slice(1);
-    }else{
-      header = CARGA_HEADER_PADRAO;
-      corpo = linhas;
-    }
-    return paraObjetos(header, corpo).filter(o => String(campo(o,'ID')).trim());
-  }
-
-  $('btnCarga').addEventListener('click', () => {
-    const lista = parseCargas($('pasteCarga').value);
-    if(!lista.length){ toast('Não encontrei nenhuma carga. Cole com o cabeçalho.'); return; }
-    let add = 0, upd = 0;
-    lista.forEach(d => {
-      const id = String(campo(d,'ID')).trim();
-      const sessao = String(campo(d,'Sessão de roteirização')).trim();
-      const key = id + '|' + sessao;
-      const ex = st.cargas.find(c => c.key === key);
-      if(ex){ ex.data = d; upd++; }
-      else{ st.cargas.push({ key, id, sessao, data: d, incluido: agora() }); add++; }
-      st.ativa = key;
-    });
-    salvar();
-    $('pasteCarga').value = '';
-    renderTudo();
-    toast(`Carga: ${add} nova(s), ${upd} atualizada(s). Agora cole os clientes.`);
-  });
-
-  // ---------- Clientes ----------
-  function parseClientes(texto){
-    const linhas = parseLinhas(texto);
+    const linhas = texto.split('\n').filter(l => l.trim() !== '').map(l => l.split('\t'));
     if(linhas.length < 2) return null;
-    const header = linhas[0].map(s => s.trim());
-    const hn = header.map(norm);
-    if(!hn.includes('cliente')) return null;
-    return paraObjetos(header, linhas.slice(1)).filter(o => {
-      const cli = String(campo(o,'Cliente')).trim();
-      if(!cli) return false;
-      if(/^cd[_\s-]/i.test(cli)) return false;      // linha do depósito (CD_MANAUS)
-      if(!String(campo(o,'Número de Ordens')).trim() && !String(campo(o,'Seqüência')).trim()) return false;
-      return true;
+    const header = linhas[0].map(h => norm(h));
+    const idx = {};
+    CAMPOS.forEach(c => {
+      idx[c.k] = -1;
+      for(const s of c.src){ const i = header.indexOf(norm(s)); if(i >= 0){ idx[c.k] = i; break; } }
     });
+    if(idx.cliente < 0 || idx.pedido < 0) return { erro: 'Não achei as colunas "Cliente" e "Número do pedido" no cabeçalho.' };
+    const regs = [];
+    linhas.slice(1).forEach(lin => {
+      const r = {};
+      CAMPOS.forEach(c => {
+        const v = idx[c.k] >= 0 ? String(lin[idx[c.k]] == null ? '' : lin[idx[c.k]]).trim() : '';
+        r[c.k] = NUMERICOS.includes(c.k) ? br2num(v) : v;
+      });
+      if(!r.pedido && !r.cliente) return;
+      if(/^cd[_\s-]/i.test(r.cliente)) return;
+      r.cidade = r.cidade || '(sem município)';
+      regs.push(r);
+    });
+    return { regs };
   }
 
-  $('pasteCli').addEventListener('input', () => {
-    const l = parseClientes($('pasteCli').value);
-    $('infoCli').textContent = l ? `${l.length} cliente(s) detectado(s).` : '';
+  $('paste').addEventListener('input', () => {
+    const p = parseColagem($('paste').value);
+    if(!p){ $('pasteInfo').textContent = ''; return; }
+    if(p.erro){ $('pasteInfo').textContent = p.erro; return; }
+    $('pasteInfo').textContent = `${p.regs.length} pedido(s) de ${distintos(p.regs,'cliente')} cliente(s) em ${distintos(p.regs,'cidade')} município(s) detectados.`;
   });
 
-  $('btnCli').addEventListener('click', () => {
-    const lista = parseClientes($('pasteCli').value);
-    if(!lista){ toast('Cole os clientes com o cabeçalho (precisa ter a coluna "Cliente").'); return; }
-    if(!lista.length){ toast('Nenhum cliente encontrado (linhas do CD são ignoradas).'); return; }
-    const cargaKey = $('selCarga').value;
-    let add = 0, upd = 0;
+  $('btnCarregar').addEventListener('click', () => {
+    const p = parseColagem($('paste').value);
+    if(!p){ toast('Cole os pedidos com o cabeçalho'); return; }
+    if(p.erro){ toast(p.erro); return; }
+    if(!p.regs.length){ toast('Nenhum pedido encontrado'); return; }
+    const modo = $('modo').value;
+    const antigos = new Map(st.pedidos.map(x => [x.pedido, x]));
+    const base = modo === 'replace' ? [] : st.pedidos.slice();
+    const pos = new Map(base.map((x,i) => [x.pedido, i]));
     const quando = agora();
-    lista.forEach(d => {
-      const nome = String(campo(d,'Cliente')).trim();
-      const instr = String(campo(d,'Instruções especiais')).trim();
-      const key = cargaKey + '|' + norm(nome) + '|' + norm(instr);
-      const ex = st.clientes.find(c => c.key === key);
-      if(ex){ ex.data = d; upd++; }
-      else{
-        st.clientes.push({ uid: st.seq++, key, carga: cargaKey, data: d, motivo: '', obs: '', atualizado: '', incluido: quando });
-        add++;
+    let novos = 0, mantidos = 0;
+    p.regs.forEach(r => {
+      const key = r.pedido || ('__' + st.seq);
+      if(pos.has(key)){
+        Object.assign(base[pos.get(key)], r);
+        mantidos++;
+        return;
       }
+      const ant = antigos.get(key);
+      const reg = Object.assign({
+        uid: st.seq++, motivo: ant ? ant.motivo : '', obs: ant ? ant.obs : '',
+        atualizado: ant ? ant.atualizado : '', incluido: ant ? ant.incluido : quando
+      }, r, { pedido: key });
+      pos.set(key, base.length);
+      base.push(reg);
+      ant ? mantidos++ : novos++;
     });
+    st.pedidos = base;
+    selecionados.clear();
     salvar();
-    $('pasteCli').value = ''; $('infoCli').textContent = '';
+    $('paste').value = ''; $('pasteInfo').textContent = '';
+    limparFiltros(false);
     renderTudo();
-    toast(`${add} cliente(s) novo(s), ${upd} atualizado(s)`);
-  });
-
-  // ---------- Render: cargas ----------
-  function cargaPorKey(k){ return st.cargas.find(c => c.key === k); }
-  function nomeCarga(k){
-    if(!k) return '(sem carga)';
-    const c = cargaPorKey(k);
-    if(!c) return '(carga removida)';
-    return c.id + ' — ' + (campo(c.data,'Descrição') || '');
-  }
-
-  function renderCargas(){
-    const box = $('cargas');
-    if(!st.cargas.length){
-      box.innerHTML = '<span class="muted">Nenhuma carga ainda. Cole a linha da rota no passo 1.</span>';
-    }else{
-      box.innerHTML = st.cargas.map(c => {
-        const d = c.data;
-        const peso = br2num(campo(d,'Entrega Total Peso'));
-        const cap = br2num(campo(d,'Capacidade Peso'));
-        const ocup = cap ? (peso / cap * 100) : 0;
-        const cli = st.clientes.filter(x => x.carga === c.key);
-        const pesoFora = cli.reduce((s,x) => s + br2num(campo(x.data,'Entrega Total Peso')), 0);
-        const pctFora = peso ? (pesoFora / peso * 100) : 0;
-        const pend = cli.filter(x => !x.motivo).length;
-        return `<div class="carga ${st.ativa===c.key?'ativa':''}" data-key="${esc(c.key)}">
-          <div class="top">
-            <span class="id">${esc(c.id)} <span class="muted" style="font-weight:400">${esc(campo(d,'Descrição'))}</span></span>
-            <button class="small danger rmCarga" title="Remover carga e seus clientes">✕</button>
-          </div>
-          <dl>
-            <dt>Veículo</dt><dd>${esc(campo(d,'Equipamento'))} · ${esc(campo(d,'Tipos de equipamento'))}</dd>
-            <dt>Motorista</dt><dd>${esc(motorista(c))}</dd>
-            <dt>Paradas / Ordens</dt><dd>${esc(campo(d,'Número de paradas'))} / ${esc(campo(d,'Número de Ordens'))}</dd>
-            <dt>Peso / Cap.</dt><dd>${fmt(peso,1)} / ${fmt(cap,0)} kg (${fmt(ocup,1)}%)</dd>
-            <dt>Valor</dt><dd>R$ ${fmt(br2num(campo(d,'Entrega Total Valor')),2)}</dd>
-            <dt>Distância</dt><dd>${esc(campo(d,'Distância total'))} km</dd>
-            <dt>Sessão</dt><dd title="${esc(c.sessao)}">${esc(c.sessao)}</dd>
-            <dt>Estado</dt><dd>${esc(campo(d,'Estado'))}</dd>
-          </dl>
-          <div class="fora">Fora: ${cli.length} cliente(s) · ${fmt(pesoFora,1)} kg (${fmt(pctFora,1)}% da carga)${cli.length ? ` · ${pend} pendente(s)` : ''}</div>
-        </div>`;
-      }).join('');
-    }
-    // selects de carga
-    const opts = st.cargas.map(c => `<option value="${esc(c.key)}">${esc(c.id)} — ${esc(campo(c.data,'Descrição'))}</option>`).join('');
-    $('selCarga').innerHTML = opts + '<option value="">(sem carga)</option>';
-    if(st.ativa && cargaPorKey(st.ativa)) $('selCarga').value = st.ativa;
-    else $('selCarga').value = st.cargas.length ? st.cargas[st.cargas.length-1].key : '';
-    const fc = $('fCarga').value;
-    $('fCarga').innerHTML = '<option value="">Todas as cargas</option>' + opts +
-      (st.clientes.some(x => !x.carga) ? '<option value="__sem__">(sem carga)</option>' : '');
-    $('fCarga').value = fc;
-    if($('fCarga').value !== fc) $('fCarga').value = '';
-  }
-
-  $('cargas').addEventListener('click', e => {
-    const card = e.target.closest('.carga'); if(!card) return;
-    const key = card.dataset.key;
-    if(e.target.classList.contains('rmCarga')){
-      const n = st.clientes.filter(x => x.carga === key).length;
-      if(!confirm(`Remover a carga ${cargaPorKey(key).id}${n ? ` e seus ${n} cliente(s)` : ''}?`)) return;
-      st.cargas = st.cargas.filter(c => c.key !== key);
-      st.clientes = st.clientes.filter(x => x.carga !== key);
-      if(st.ativa === key) st.ativa = '';
-      salvar(); renderTudo(); return;
-    }
-    st.ativa = key;
-    $('fCarga').value = $('fCarga').value === key ? '' : key;
-    salvar(); renderCargas(); renderTabela();
+    toast(`${novos} pedido(s) novo(s)${mantidos ? `, ${mantidos} já existente(s)` : ''}`);
   });
 
   // ---------- Filtros ----------
   function filtrados(){
     const q = norm($('busca').value);
-    const fc = $('fCarga').value;
-    const fs = $('fStatus').value;
-    const fm = $('fMotivo').value;
-    return st.clientes.filter(r => {
-      if(fc === '__sem__' && r.carga) return false;
-      if(fc && fc !== '__sem__' && r.carga !== fc) return false;
-      if(fs === 'ok' && !r.motivo) return false;
-      if(fs === 'pend' && r.motivo) return false;
-      if(fm && r.motivo !== fm) return false;
+    const fm = $('fMun').value, fr = $('fRota').value, fs = $('fStatus').value, fmo = $('fMotivo').value;
+    return st.pedidos.filter(p => {
+      if(fm && p.cidade !== fm) return false;
+      if(fr && p.codrota !== fr) return false;
+      if(fs === 'ok' && !p.motivo) return false;
+      if(fs === 'pend' && p.motivo) return false;
+      if(fmo === '__pend__' && p.motivo) return false;
+      if(fmo && fmo !== '__pend__' && p.motivo !== fmo) return false;
       if(q){
-        const txt = norm(Object.values(r.data).join(' ') + ' ' + r.motivo + ' ' + r.obs + ' ' + nomeCarga(r.carga));
+        const txt = norm([p.pedido,p.cliente,p.cidade,p.instr,p.codrota,p.termino,p.motivo,p.obs].join(' '));
         if(!txt.includes(q)) return false;
       }
       return true;
     });
   }
+  function ordenar(lista){
+    const c = CAMPOS.find(x => x.k === sortKey);
+    const numerico = c && NUMERICOS.includes(c.k);
+    return lista.slice().sort((a,b) => {
+      let va = sortKey === 'status' ? (a.motivo ? 1 : 0) : sortKey === 'motivo' ? a.motivo : a[sortKey];
+      let vb = sortKey === 'status' ? (b.motivo ? 1 : 0) : sortKey === 'motivo' ? b.motivo : b[sortKey];
+      if(numerico || sortKey === 'status') return ((va || 0) - (vb || 0)) * sortDir || String(a.cliente).localeCompare(b.cliente);
+      const r = String(va || '').localeCompare(String(vb || ''), 'pt-BR', {numeric:true});
+      return r * sortDir || String(a.cliente).localeCompare(b.cliente) || String(a.pedido).localeCompare(b.pedido);
+    });
+  }
+  function limparFiltros(render){
+    $('busca').value = ''; $('fMun').value = ''; $('fRota').value = ''; $('fStatus').value = ''; $('fMotivo').value = '';
+    if(render !== false){ renderFiltros(); renderTabela(); renderGrupos(); renderBarras(); }
+  }
 
   // ---------- Render ----------
-  function opcoesMotivo(atual){
+  function opcoesMotivo(atual, vazio){
     let lista = st.motivos.slice();
     if(atual && !lista.includes(atual)) lista = [atual].concat(lista);
-    return '<option value="">— selecione —</option>' +
+    return `<option value="">${vazio || '— selecione —'}</option>` +
       lista.map(m => `<option ${m===atual?'selected':''}>${esc(m)}</option>`).join('');
   }
 
-  function renderSelectsMotivo(){
-    const usados = new Set(st.clientes.map(r => r.motivo).filter(Boolean));
+  function agrupar(lista, k){
+    const m = new Map();
+    lista.forEach(p => {
+      const g = p[k] || '(vazio)';
+      if(!m.has(g)) m.set(g, []);
+      m.get(g).push(p);
+    });
+    return m;
+  }
+
+  function renderFiltros(){
+    const fm = $('fMun').value, fr = $('fRota').value, fmo = $('fMotivo').value;
+    const muns = Array.from(agrupar(st.pedidos,'cidade').entries()).sort((a,b) => b[1].length - a[1].length);
+    $('fMun').innerHTML = '<option value="">Todos os municípios</option>' +
+      muns.map(([m,l]) => `<option value="${esc(m)}">${esc(m)} (${l.length})</option>`).join('');
+    $('fMun').value = fm; if($('fMun').value !== fm) $('fMun').value = '';
+    const rotas = Array.from(agrupar(st.pedidos,'codrota').keys()).sort((a,b) => String(a).localeCompare(String(b),'pt-BR',{numeric:true}));
+    $('fRota').innerHTML = '<option value="">Todas as rotas</option>' + rotas.map(r => `<option value="${esc(r)}">Rota ${esc(r)}</option>`).join('');
+    $('fRota').value = fr; if($('fRota').value !== fr) $('fRota').value = '';
+    const usados = new Set(st.pedidos.map(p => p.motivo).filter(Boolean));
     const todos = Array.from(new Set(st.motivos.concat(Array.from(usados))));
-    const fm = $('fMotivo').value;
-    $('fMotivo').innerHTML = '<option value="">Todos os motivos</option>' +
-      todos.map(m => `<option ${m===fm?'selected':''}>${esc(m)}</option>`).join('');
+    $('fMotivo').innerHTML = '<option value="">Todos os motivos</option><option value="__pend__">(sem motivo)</option>' +
+      todos.map(m => `<option>${esc(m)}</option>`).join('');
+    $('fMotivo').value = fmo; if($('fMotivo').value !== fmo) $('fMotivo').value = '';
     const bm = $('bulkMotivo').value;
-    $('bulkMotivo').innerHTML = '<option value="">Motivo em lote...</option>' +
-      st.motivos.map(m => `<option ${m===bm?'selected':''}>${esc(m)}</option>`).join('') +
-      '<option value="__limpar__">(limpar justificativa)</option>';
+    $('bulkMotivo').innerHTML = opcoesMotivo('', 'Motivo...') + '<option value="__limpar__">(limpar justificativa)</option>';
+    $('bulkMotivo').value = bm;
     $('motivosTxt').value = st.motivos.join('\n');
+    // chips
+    $('chipsMun').innerHTML = muns.length ? `<span class="chip ${!$('fMun').value?'on':''}" data-mun="">Todos<b>${st.pedidos.length}</b></span>` +
+      muns.map(([m,l]) => {
+        const pend = l.filter(p => !p.motivo).length;
+        return `<span class="chip ${$('fMun').value===m?'on':''}" data-mun="${esc(m)}" title="${pend} pendente(s)">${esc(m)}<b>${l.length}</b>${pend ? '' : ' ✓'}</span>`;
+      }).join('') : '';
   }
 
   function renderKpis(){
-    const total = st.clientes.length;
-    const ok = st.clientes.filter(r => r.motivo).length;
-    const pend = total - ok;
-    const pct = total ? Math.round(ok / total * 100) : 0;
-    const peso = st.clientes.reduce((s,r) => s + br2num(campo(r.data,'Entrega Total Peso')), 0);
-    const valor = st.clientes.reduce((s,r) => s + br2num(campo(r.data,'Entrega Total Valor')), 0);
-    $('kTotal').textContent = total.toLocaleString('pt-BR');
-    $('kOk').textContent = ok.toLocaleString('pt-BR');
-    $('kPend').textContent = pend.toLocaleString('pt-BR');
+    const L = st.pedidos;
+    const ok = L.filter(p => p.motivo).length;
+    const pct = L.length ? Math.round(ok / L.length * 100) : 0;
+    $('kPed').textContent = L.length.toLocaleString('pt-BR');
+    $('kCli').textContent = distintos(L,'cliente').toLocaleString('pt-BR');
+    $('kMun').textContent = distintos(L,'cidade').toLocaleString('pt-BR');
+    $('kOk').textContent = ok.toLocaleString('pt-BR') + (L.length ? ` (${pct}%)` : '');
+    $('kPend').textContent = (L.length - ok).toLocaleString('pt-BR');
     $('kBar').style.width = pct + '%';
-    $('kPeso').textContent = fmt(peso, 1);
-    $('kValor').textContent = fmt(valor, 2);
-
-    const cont = {};
-    st.clientes.forEach(r => { if(r.motivo) cont[r.motivo] = (cont[r.motivo] || 0) + 1; });
-    const arr = Object.entries(cont).sort((a,b) => b[1] - a[1]);
-    if(!arr.length){ $('resumo').innerHTML = '<span class="muted">Nenhum cliente justificado ainda.</span>'; return; }
-    const max = arr[0][1];
-    $('resumo').innerHTML = arr.map(([m,n]) => `
-      <div class="bar">
-        <span title="${esc(m)}" style="overflow:hidden;text-overflow:ellipsis">${esc(m)}</span>
-        <div class="track"><div class="fill" style="width:${(n/max*100).toFixed(1)}%"></div></div>
-        <span class="n">${n}</span>
-      </div>`).join('');
+    $('kPeso').textContent = fmt(soma(L,'peso'), 1);
+    $('kValor').textContent = fmt(soma(L,'valor'), 2);
+    const ses = L.find(p => p.sessao);
+    $('subtitulo').textContent = ses ? `Sessão: ${ses.sessao}` : 'Cole os pedidos não atendidos do RoadNet, justifique e gere a planilha com dashboard.';
   }
 
-  function celula(r, col){
-    const v = campo(r.data, col[1]);
-    if(col[2] === 'num') return `<td class="num">${v === '' ? '' : fmt(br2num(v), 2)}</td>`;
-    if(col[2] === 'int') return `<td class="num">${esc(v)}</td>`;
-    if(col[2] === 'instr') return `<td class="instr" title="${esc(v)}">${esc(v)}</td>`;
+  function renderBarras(){
+    const L = st.pedidos;
+    const fm = $('fMun').value;
+    const muns = Array.from(agrupar(L,'cidade').entries()).sort((a,b) => b[1].length - a[1].length);
+    if(!muns.length){ $('barMun').innerHTML = '<span class="muted">Sem pedidos.</span>'; }
+    else{
+      const max = muns[0][1].length;
+      $('barMun').innerHTML = muns.map(([m,l]) => {
+        const ok = l.filter(p => p.motivo).length;
+        return `<div class="bar click ${fm===m?'on':''}" data-mun="${esc(m)}" title="${ok} justificado(s) de ${l.length}">
+          <span class="lab">${esc(m)}</span>
+          <div class="track"><div class="fill ok" style="width:${ok/max*100}%"></div><div class="fill pend" style="width:${(l.length-ok)/max*100}%"></div></div>
+          <span class="n">${l.length} · R$ ${fmt(soma(l,'valor'),0)}</span>
+        </div>`;
+      }).join('');
+    }
+    const mot = Array.from(agrupar(L.filter(p => p.motivo),'motivo').entries()).sort((a,b) => b[1].length - a[1].length);
+    const pend = L.filter(p => !p.motivo).length;
+    if(!mot.length && !pend){ $('barMot').innerHTML = '<span class="muted">Sem pedidos.</span>'; return; }
+    const max2 = Math.max(pend, ...mot.map(x => x[1].length));
+    $('barMot').innerHTML = mot.map(([m,l]) => `
+      <div class="bar"><span class="lab" title="${esc(m)}">${esc(m)}</span>
+        <div class="track"><div class="fill" style="width:${l.length/max2*100}%"></div></div>
+        <span class="n">${l.length} · R$ ${fmt(soma(l,'valor'),0)}</span></div>`).join('') +
+      (pend ? `<div class="bar"><span class="lab"><i>Pendente</i></span>
+        <div class="track"><div class="fill pend" style="width:${pend/max2*100}%"></div></div>
+        <span class="n">${pend}</span></div>` : '');
+  }
+
+  function renderGrupos(){
+    const k = $('grpBy').value;
+    const nomes = {cidade:'Município', cliente:'Cliente', codrota:'Cód. rota', termino:'Data término'};
+    const lista = filtrados();
+    const grupos = Array.from(agrupar(lista, k).entries()).sort((a,b) => b[1].length - a[1].length || String(a[0]).localeCompare(b[0]));
+    $('grpHead').innerHTML = `<tr><th class="nosort">${nomes[k]}</th><th class="num nosort">Pedidos</th><th class="num nosort">Pendentes</th>
+      <th class="num nosort">Peso (kg)</th><th class="num nosort">Valor (R$)</th><th class="nosort">Motivo atual</th>
+      <th class="nosort">Aplicar motivo</th><th class="nosort">Observação</th><th class="nosort"></th></tr>`;
+    if(!grupos.length){ $('grpBody').innerHTML = `<tr><td colspan="9" class="muted" style="padding:16px">Sem pedidos.</td></tr>`; return; }
+    $('grpBody').innerHTML = grupos.map(([g,l]) => {
+      const pend = l.filter(p => !p.motivo).length;
+      const mots = Array.from(new Set(l.map(p => p.motivo).filter(Boolean)));
+      const atual = mots.length === 0 ? '<span class="muted">—</span>' : mots.length === 1 ? esc(mots[0]) : `<span class="muted">${mots.length} motivos</span>`;
+      return `<tr class="${pend ? 'pend' : 'ok'}" data-g="${esc(g)}">
+        <td><b>${esc(g)}</b></td><td class="num">${l.length}</td><td class="num">${pend}</td>
+        <td class="num">${fmt(soma(l,'peso'),1)}</td><td class="num">${fmt(soma(l,'valor'),2)}</td>
+        <td>${atual}</td>
+        <td><select class="gmot">${opcoesMotivo(mots.length === 1 ? mots[0] : '')}</select></td>
+        <td><input class="gobs" placeholder="Observação (opcional)" style="min-width:180px"></td>
+        <td><button class="small primary gapl">Aplicar</button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  function celula(p, c){
+    const v = p[c.k];
+    if(c.t === 'money') return `<td class="num">${fmt(v,2)}</td>`;
+    if(c.t === 'num') return `<td class="num">${fmt(v,1)}</td>`;
+    if(c.t === 'vol') return `<td class="num">${fmt(v,3)}</td>`;
+    if(c.t === 'int') return `<td class="num">${fmt(v,0)}</td>`;
+    if(c.t === 'instr') return `<td class="instr" title="${esc(v)}">${esc(v)}</td>`;
     return `<td>${esc(v)}</td>`;
   }
 
   function renderTabela(){
-    const lista = filtrados();
-    const todosSel = lista.length > 0 && lista.every(r => selecionados.has(r.uid));
-    const nCols = CLI_COLS.length + 6;
+    const lista = ordenar(filtrados());
+    const cols = CAMPOS.filter(c => c.tela);
+    const todosSel = lista.length > 0 && lista.every(p => selecionados.has(p.uid));
+    const seta = k => sortKey === k ? (sortDir > 0 ? ' ▲' : ' ▼') : '';
     $('thead').innerHTML = `<tr>
-      <th><input type="checkbox" id="chkAll" ${todosSel?'checked':''} title="Selecionar todos os filtrados"></th>
-      <th>Status</th><th>Carga</th>
-      ${CLI_COLS.map(c => `<th class="${c[2]==='num'||c[2]==='int'?'num':''}">${esc(c[0])}</th>`).join('')}
-      <th>Motivo</th><th>Observação</th><th>Atualizado</th>
+      <th class="nosort"><input type="checkbox" id="chkAll" ${todosSel?'checked':''} title="Selecionar todos os filtrados"></th>
+      <th data-sort="status">Status${seta('status')}</th>
+      ${cols.map(c => `<th data-sort="${c.k}" class="${['money','num','vol','int'].includes(c.t)?'num':''}">${esc(c.l)}${seta(c.k)}</th>`).join('')}
+      <th data-sort="motivo">Motivo${seta('motivo')}</th><th class="nosort">Observação</th><th class="nosort">Atualizado</th>
     </tr>`;
-
-    if(!st.clientes.length){
-      $('tbody').innerHTML = `<tr><td colspan="${nCols}" class="muted" style="padding:20px">Nenhum cliente carregado. Cole a carga e depois os clientes acima.</td></tr>`;
+    const nCols = cols.length + 5;
+    if(!st.pedidos.length){
+      $('tbody').innerHTML = `<tr><td colspan="${nCols}" class="muted" style="padding:20px">Nenhum pedido carregado. Cole os dados no passo 1.</td></tr>`;
     }else if(!lista.length){
-      $('tbody').innerHTML = `<tr><td colspan="${nCols}" class="muted" style="padding:20px">Nenhum cliente encontrado com esses filtros.</td></tr>`;
+      $('tbody').innerHTML = `<tr><td colspan="${nCols}" class="muted" style="padding:20px">Nenhum pedido com esses filtros.</td></tr>`;
     }else{
-      $('tbody').innerHTML = lista.map(r => {
-        const c = cargaPorKey(r.carga);
-        return `<tr class="${r.motivo?'ok':'pend'}" data-id="${r.uid}">
-          <td><input type="checkbox" class="chk" ${selecionados.has(r.uid)?'checked':''}></td>
-          <td class="st">${r.motivo ? '<span class="badge ok">Justificado</span>' : '<span class="badge pend">Pendente</span>'}</td>
-          <td><b>${esc(c ? c.id : '—')}</b></td>
-          ${CLI_COLS.map(col => celula(r, col)).join('')}
-          <td><select class="mot">${opcoesMotivo(r.motivo)}</select></td>
-          <td><input class="obs" value="${esc(r.obs)}" placeholder="Detalhe (opcional)"></td>
-          <td class="muted upd">${esc(r.atualizado)}</td>
-        </tr>`;
-      }).join('');
+      $('tbody').innerHTML = lista.map(p => `
+        <tr class="${p.motivo?'ok':'pend'}" data-id="${p.uid}">
+          <td><input type="checkbox" class="chk" ${selecionados.has(p.uid)?'checked':''}></td>
+          <td class="st">${p.motivo ? '<span class="badge ok">Justificado</span>' : '<span class="badge pend">Pendente</span>'}</td>
+          ${cols.map(c => celula(p, c)).join('')}
+          <td><select class="mot">${opcoesMotivo(p.motivo)}</select></td>
+          <td><input class="obs" value="${esc(p.obs)}" placeholder="Detalhe (opcional)"></td>
+          <td class="muted upd">${esc(p.atualizado)}</td>
+        </tr>`).join('');
     }
-    $('infoFiltro').textContent = `Exibindo ${lista.length} de ${st.clientes.length} cliente(s).`;
+    $('infoFiltro').textContent = `Exibindo ${lista.length} de ${st.pedidos.length} pedido(s) · ` +
+      `R$ ${fmt(soma(lista,'valor'),2)} · ${fmt(soma(lista,'peso'),1)} kg · ${lista.filter(p => !p.motivo).length} pendente(s)`;
     $('nSel').textContent = selecionados.size;
   }
 
-  function renderTudo(){ renderCargas(); renderSelectsMotivo(); renderKpis(); renderTabela(); }
+  function renderTudo(){ renderFiltros(); renderKpis(); renderBarras(); renderGrupos(); renderTabela(); }
+  function renderResumo(){ renderFiltros(); renderKpis(); renderBarras(); renderGrupos(); }
 
-  // ---------- Eventos da tabela ----------
-  function linhaPorEl(el){
-    const tr = el.closest('tr[data-id]');
-    if(!tr) return null;
-    const id = parseInt(tr.dataset.id, 10);
-    return { tr, r: st.clientes.find(x => x.uid === id) };
+  // ---------- Eventos ----------
+  function setMun(m){
+    $('fMun').value = ($('fMun').value === m && m) ? '' : m;
+    renderFiltros(); renderBarras(); renderGrupos(); renderTabela();
   }
+  $('chipsMun').addEventListener('click', e => { const c = e.target.closest('.chip'); if(c) setMun(c.dataset.mun); });
+  $('barMun').addEventListener('click', e => { const b = e.target.closest('.bar'); if(b) setMun(b.dataset.mun); });
 
-  $('tbody').addEventListener('change', e => {
-    const x = linhaPorEl(e.target); if(!x || !x.r) return;
-    if(e.target.classList.contains('chk')){
-      e.target.checked ? selecionados.add(x.r.uid) : selecionados.delete(x.r.uid);
-      $('nSel').textContent = selecionados.size;
-      return;
-    }
-    if(e.target.classList.contains('mot')){
-      x.r.motivo = e.target.value;
-      x.r.atualizado = agora();
-      salvar();
-      x.tr.className = x.r.motivo ? 'ok' : 'pend';
-      x.tr.querySelector('.st').innerHTML = x.r.motivo ? '<span class="badge ok">Justificado</span>' : '<span class="badge pend">Pendente</span>';
-      x.tr.querySelector('.upd').textContent = x.r.atualizado;
-      renderKpis(); renderSelectsMotivo(); renderCargas();
-    }
+  ['busca','fMun','fRota','fStatus','fMotivo'].forEach(id => $(id).addEventListener('input', () => {
+    if(id === 'fMun') renderFiltros();
+    renderBarras(); renderGrupos(); renderTabela();
+  }));
+  $('btnLimparFiltros').addEventListener('click', () => limparFiltros());
+  $('grpBy').addEventListener('change', renderGrupos);
+
+  $('thead').addEventListener('click', e => {
+    const th = e.target.closest('th[data-sort]'); if(!th) return;
+    const k = th.dataset.sort;
+    if(sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = 1; }
+    renderTabela();
   });
-
-  $('tbody').addEventListener('input', e => {
-    if(!e.target.classList.contains('obs')) return;
-    const x = linhaPorEl(e.target); if(!x || !x.r) return;
-    x.r.obs = e.target.value;
-    x.r.atualizado = agora();
-    x.tr.querySelector('.upd').textContent = x.r.atualizado;
-    salvar();
-  });
-
   $('thead').addEventListener('change', e => {
     if(e.target.id !== 'chkAll') return;
-    filtrados().forEach(r => e.target.checked ? selecionados.add(r.uid) : selecionados.delete(r.uid));
+    filtrados().forEach(p => e.target.checked ? selecionados.add(p.uid) : selecionados.delete(p.uid));
     renderTabela();
   });
 
-  ['busca','fCarga','fStatus','fMotivo'].forEach(id => $(id).addEventListener('input', renderTabela));
+  function linhaPorEl(el){
+    const tr = el.closest('tr[data-id]'); if(!tr) return null;
+    const id = parseInt(tr.dataset.id, 10);
+    return { tr, p: st.pedidos.find(x => x.uid === id) };
+  }
+  $('tbody').addEventListener('change', e => {
+    const x = linhaPorEl(e.target); if(!x || !x.p) return;
+    if(e.target.classList.contains('chk')){
+      e.target.checked ? selecionados.add(x.p.uid) : selecionados.delete(x.p.uid);
+      $('nSel').textContent = selecionados.size; return;
+    }
+    if(e.target.classList.contains('mot')){
+      x.p.motivo = e.target.value; x.p.atualizado = agora(); salvar();
+      x.tr.className = x.p.motivo ? 'ok' : 'pend';
+      x.tr.querySelector('.st').innerHTML = x.p.motivo ? '<span class="badge ok">Justificado</span>' : '<span class="badge pend">Pendente</span>';
+      x.tr.querySelector('.upd').textContent = x.p.atualizado;
+      renderResumo();
+    }
+  });
+  $('tbody').addEventListener('input', e => {
+    if(!e.target.classList.contains('obs')) return;
+    const x = linhaPorEl(e.target); if(!x || !x.p) return;
+    x.p.obs = e.target.value; x.p.atualizado = agora();
+    x.tr.querySelector('.upd').textContent = x.p.atualizado;
+    salvar();
+  });
 
-  // ---------- Ações em lote ----------
+  // aplicar por grupo
+  $('grpBody').addEventListener('click', e => {
+    if(!e.target.classList.contains('gapl')) return;
+    const tr = e.target.closest('tr[data-g]');
+    const g = tr.dataset.g, k = $('grpBy').value;
+    const m = tr.querySelector('.gmot').value, o = tr.querySelector('.gobs').value.trim();
+    if(!m){ toast('Escolha o motivo para o grupo'); return; }
+    const sobre = $('grpSobrescrever').checked;
+    const quando = agora();
+    let n = 0, pulados = 0;
+    filtrados().forEach(p => {
+      if((p[k] || '(vazio)') !== g) return;
+      if(p.motivo && !sobre && p.motivo !== m){ pulados++; return; }
+      p.motivo = m; if(o) p.obs = o; p.atualizado = quando; n++;
+    });
+    salvar(); renderTudo();
+    toast(`${g}: ${n} pedido(s) justificado(s)${pulados ? ` · ${pulados} já tinham outro motivo (marque "sobrescrever")` : ''}`);
+  });
+
+  // seleção em massa
+  $('btnSelFiltrados').addEventListener('click', () => { filtrados().forEach(p => selecionados.add(p.uid)); renderTabela(); });
+  $('btnSelPend').addEventListener('click', () => { filtrados().filter(p => !p.motivo).forEach(p => selecionados.add(p.uid)); renderTabela(); });
+  $('btnSelNenhum').addEventListener('click', () => { selecionados.clear(); renderTabela(); });
+
   $('btnAplicar').addEventListener('click', () => {
-    if(!selecionados.size){ toast('Selecione clientes na tabela'); return; }
-    const m = $('bulkMotivo').value;
-    const o = $('bulkObs').value.trim();
+    if(!selecionados.size){ toast('Selecione pedidos (use "Selecionar todos os filtrados")'); return; }
+    const m = $('bulkMotivo').value, o = $('bulkObs').value.trim();
     if(!m && !o){ toast('Escolha um motivo ou escreva uma observação'); return; }
     const quando = agora();
-    st.clientes.forEach(r => {
-      if(!selecionados.has(r.uid)) return;
-      if(m === '__limpar__'){ r.motivo = ''; r.obs = ''; }
-      else{ if(m) r.motivo = m; if(o) r.obs = o; }
-      r.atualizado = quando;
+    st.pedidos.forEach(p => {
+      if(!selecionados.has(p.uid)) return;
+      if(m === '__limpar__'){ p.motivo = ''; p.obs = ''; }
+      else { if(m) p.motivo = m; if(o) p.obs = o; }
+      p.atualizado = quando;
     });
     const n = selecionados.size;
-    selecionados.clear();
-    $('bulkObs').value = '';
+    selecionados.clear(); $('bulkObs').value = '';
     salvar(); renderTudo();
-    toast(`${n} cliente(s) atualizado(s)`);
+    toast(`${n} pedido(s) atualizado(s)`);
   });
 
   $('btnRemover').addEventListener('click', () => {
-    if(!selecionados.size){ toast('Selecione clientes na tabela'); return; }
-    if(!confirm(`Remover ${selecionados.size} cliente(s) da lista?`)) return;
-    st.clientes = st.clientes.filter(r => !selecionados.has(r.uid));
-    selecionados.clear();
-    salvar(); renderTudo();
+    if(!selecionados.size){ toast('Selecione pedidos na tabela'); return; }
+    if(!confirm(`Remover ${selecionados.size} pedido(s) da lista?`)) return;
+    st.pedidos = st.pedidos.filter(p => !selecionados.has(p.uid));
+    selecionados.clear(); salvar(); renderTudo();
   });
 
   $('btnLimpar').addEventListener('click', () => {
-    if(!st.clientes.length && !st.cargas.length){ toast('Já está vazio'); return; }
-    if(!confirm('Apagar TODAS as cargas, clientes e justificativas deste navegador? Exporte antes se precisar.')) return;
+    if(!st.pedidos.length){ toast('Já está vazio'); return; }
+    if(!confirm('Apagar TODOS os pedidos e justificativas deste navegador? Gere a planilha antes se precisar.')) return;
     const motivos = st.motivos;
     st = novoEstado(); st.motivos = motivos;
-    selecionados.clear();
-    salvar(); renderTudo();
+    selecionados.clear(); salvar(); limparFiltros(false); renderTudo();
   });
 
-  // ---------- Motivos ----------
   $('btnSalvarMotivos').addEventListener('click', () => {
     const lista = $('motivosTxt').value.split('\n').map(s => s.trim()).filter(Boolean);
     if(!lista.length){ toast('Informe ao menos um motivo'); return; }
-    st.motivos = Array.from(new Set(lista));
-    salvar(); renderTudo(); toast('Motivos salvos');
+    st.motivos = Array.from(new Set(lista)); salvar(); renderTudo(); toast('Motivos salvos');
   });
   $('btnMotivosPadrao').addEventListener('click', () => {
-    st.motivos = MOTIVOS_PADRAO.slice();
-    salvar(); renderTudo(); toast('Motivos padrão restaurados');
-  });
-
-  // ---------- Exportação ----------
-  function linhasExport(){
-    return st.clientes.map(r => {
-      const c = cargaPorKey(r.carga);
-      const d = c ? c.data : {};
-      const o = {
-        'CARGA': c ? c.id : '',
-        'DESCRIÇÃO CARGA': campo(d,'Descrição'),
-        'SESSÃO': c ? c.sessao : '',
-        'VEÍCULO': campo(d,'Equipamento'),
-        'TIPO VEÍCULO': campo(d,'Tipos de equipamento'),
-        'MOTORISTA': c ? motorista(c) : ''
-      };
-      CLI_COLS.forEach(col => {
-        const v = campo(r.data, col[1]);
-        o[col[0].toUpperCase()] = (col[2] === 'num' || col[2] === 'int') ? (v === '' ? '' : br2num(v)) : v;
-      });
-      o['STATUS'] = r.motivo ? 'Justificado' : 'Pendente';
-      o['MOTIVO'] = r.motivo;
-      o['OBSERVAÇÃO'] = r.obs;
-      o['INCLUÍDO EM'] = r.incluido || '';
-      o['ATUALIZADO EM'] = r.atualizado || '';
-      return o;
-    });
-  }
-
-  function linhasCargas(){
-    return st.cargas.map(c => {
-      const d = c.data;
-      const cli = st.clientes.filter(x => x.carga === c.key);
-      const peso = br2num(campo(d,'Entrega Total Peso'));
-      const cap = br2num(campo(d,'Capacidade Peso'));
-      const pesoFora = cli.reduce((s,x) => s + br2num(campo(x.data,'Entrega Total Peso')), 0);
-      const valorFora = cli.reduce((s,x) => s + br2num(campo(x.data,'Entrega Total Valor')), 0);
-      return {
-        'CARGA': c.id, 'DESCRIÇÃO': campo(d,'Descrição'), 'SESSÃO': c.sessao, 'ESTADO': campo(d,'Estado'),
-        'VEÍCULO': campo(d,'Equipamento'), 'TIPO VEÍCULO': campo(d,'Tipos de equipamento'), 'MOTORISTA': motorista(c),
-        'PARADAS': br2num(campo(d,'Número de paradas')), 'ORDENS': br2num(campo(d,'Número de Ordens')),
-        'PESO CARGA (KG)': peso, 'CAPACIDADE (KG)': cap, 'OCUPAÇÃO %': cap ? Math.round(peso / cap * 1000) / 10 : '',
-        'VALOR CARGA (R$)': br2num(campo(d,'Entrega Total Valor')), 'DISTÂNCIA (KM)': br2num(campo(d,'Distância total')),
-        'CLIENTES FORA': cli.length, 'PESO FORA (KG)': Math.round(pesoFora * 100) / 100,
-        'VALOR FORA (R$)': Math.round(valorFora * 100) / 100,
-        '% PESO FORA': peso ? Math.round(pesoFora / peso * 1000) / 10 : '',
-        'PENDENTES': cli.filter(x => !x.motivo).length
-      };
-    });
-  }
-
-  $('btnExportar').addEventListener('click', () => {
-    if(!st.clientes.length && !st.cargas.length){ toast('Nada para exportar'); return; }
-    const linhas = linhasExport();
-    if(typeof XLSX === 'undefined'){
-      if(!linhas.length){ toast('Sem clientes para exportar'); return; }
-      const cab = Object.keys(linhas[0]);
-      const csv = [cab.join(';')].concat(linhas.map(l => cab.map(c => '"' + String(l[c]).replace(/"/g,'""') + '"').join(';'))).join('\r\n');
-      const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = `justificativas_${hojeArquivo()}.csv`; a.click();
-      return;
-    }
-    const wb = XLSX.utils.book_new();
-    if(linhas.length){
-      const ws = XLSX.utils.json_to_sheet(linhas);
-      ws['!cols'] = Object.keys(linhas[0]).map(k => ({ wch: Math.min(40, Math.max(k.length + 2, 12)) }));
-      XLSX.utils.book_append_sheet(wb, ws, 'Justificativas');
-    }
-    const cg = linhasCargas();
-    if(cg.length){
-      const ws3 = XLSX.utils.json_to_sheet(cg);
-      ws3['!cols'] = Object.keys(cg[0]).map(k => ({ wch: Math.min(45, Math.max(k.length + 2, 12)) }));
-      XLSX.utils.book_append_sheet(wb, ws3, 'Cargas');
-    }
-    if(st.clientes.length){
-      const cont = {};
-      st.clientes.forEach(r => {
-        const k = r.motivo || '(Pendente)';
-        if(!cont[k]) cont[k] = { n: 0, peso: 0, valor: 0 };
-        cont[k].n++;
-        cont[k].peso += br2num(campo(r.data,'Entrega Total Peso'));
-        cont[k].valor += br2num(campo(r.data,'Entrega Total Valor'));
-      });
-      const total = st.clientes.length;
-      const resumo = Object.entries(cont).sort((a,b) => b[1].n - a[1].n).map(([m,v]) => ({
-        'MOTIVO': m, 'CLIENTES': v.n, '% DO TOTAL': Math.round(v.n / total * 1000) / 10,
-        'PESO (KG)': Math.round(v.peso * 100) / 100, 'VALOR (R$)': Math.round(v.valor * 100) / 100
-      }));
-      const ws2 = XLSX.utils.json_to_sheet(resumo);
-      ws2['!cols'] = [{wch:40},{wch:10},{wch:12},{wch:12},{wch:14}];
-      XLSX.utils.book_append_sheet(wb, ws2, 'Resumo');
-    }
-    XLSX.writeFile(wb, `justificativas_${hojeArquivo()}.xlsx`);
+    st.motivos = MOTIVOS_PADRAO.slice(); salvar(); renderTudo(); toast('Motivos padrão restaurados');
   });
 
   $('btnCopiar').addEventListener('click', async () => {
-    const linhas = linhasExport();
-    if(!linhas.length){ toast('Nada para copiar'); return; }
-    const cab = Object.keys(linhas[0]);
-    const val = v => typeof v === 'number' ? String(v).replace('.', ',') : String(v).replace(/[\t\n]/g,' ');
-    const tsv = [cab.join('\t')].concat(linhas.map(l => cab.map(c => val(l[c])).join('\t'))).join('\n');
-    try{ await navigator.clipboard.writeText(tsv); toast('Copiado! Cole no Excel com Ctrl+V'); }
+    if(!st.pedidos.length){ toast('Nada para copiar'); return; }
+    const cab = CAMPOS.map(c => c.l).concat(['Status','Motivo','Observação','Atualizado em']);
+    const val = (v, k) => NUMERICOS.includes(k) ? String(v).replace('.', ',') : String(v == null ? '' : v).replace(/[\t\n]/g,' ');
+    const linhas = st.pedidos.map(p => CAMPOS.map(c => val(p[c.k], c.k)).concat([p.motivo ? 'Justificado' : 'Pendente', p.motivo, p.obs, p.atualizado]).join('\t'));
+    try{ await navigator.clipboard.writeText([cab.join('\t')].concat(linhas).join('\n')); toast('Copiado! Cole no Excel com Ctrl+V'); }
     catch(e){ toast('Não foi possível copiar'); }
+  });
+
+  // =====================================================================
+  //  PLANILHA COM DASHBOARD (ExcelJS)
+  // =====================================================================
+  const COR = { escuro:'FF1F2937', azul:'FF1F6FEB', verde:'FF1A8F4C', laranja:'FFD97706', vermelho:'FFC8102E',
+                cinza:'FFF3F4F6', borda:'FFD1D5DB', branco:'FFFFFFFF', azulClaro:'FFE8F0FE', verdeClaro:'FFECFDF3', laranjaClaro:'FFFFF7ED' };
+  const FMT = { money:'"R$" #,##0.00', num:'#,##0.0', vol:'#,##0.000', int:'#,##0', pct:'0.0%' };
+
+  function grafico(titulo, itens, fmtVal, cor){
+    // desenha barras horizontais num canvas e devolve base64 PNG
+    try{
+      const W = 760, rowH = 26, top = 46, h = top + itens.length * rowH + 16;
+      const cv = document.createElement('canvas');
+      const sc = 2; cv.width = W * sc; cv.height = h * sc;
+      const g = cv.getContext && cv.getContext('2d');
+      if(!g) return null;
+      g.scale(sc, sc);
+      g.fillStyle = '#ffffff'; g.fillRect(0,0,W,h);
+      g.fillStyle = '#1f2937'; g.font = 'bold 15px Segoe UI, Arial'; g.fillText(titulo, 14, 26);
+      const labW = 230, valW = 130, barW = W - labW - valW - 30;
+      const max = Math.max(1, ...itens.map(i => i.v));
+      itens.forEach((it, i) => {
+        const y = top + i * rowH;
+        g.fillStyle = '#374151'; g.font = '12px Segoe UI, Arial';
+        let lab = it.l; while(g.measureText(lab).width > labW - 10 && lab.length > 3) lab = lab.slice(0,-2);
+        if(lab !== it.l) lab += '…';
+        g.textAlign = 'right'; g.fillText(lab, labW, y + 15);
+        g.fillStyle = '#eef2f7'; g.fillRect(labW + 8, y + 4, barW, 16);
+        g.fillStyle = it.cor || cor; g.fillRect(labW + 8, y + 4, Math.max(2, barW * it.v / max), 16);
+        g.textAlign = 'left'; g.fillStyle = '#111827'; g.font = 'bold 12px Segoe UI, Arial';
+        g.fillText(fmtVal(it.v), labW + 14 + barW, y + 15);
+      });
+      return { base64: cv.toDataURL('image/png'), w: W, h };
+    }catch(e){ return null; }
+  }
+
+  function estiloCab(cell, cor){
+    cell.font = { bold:true, color:{argb:COR.branco}, size:11 };
+    cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:cor || COR.escuro} };
+    cell.alignment = { vertical:'middle', horizontal:'center', wrapText:true };
+    cell.border = { top:{style:'thin',color:{argb:COR.borda}}, bottom:{style:'thin',color:{argb:COR.borda}},
+                    left:{style:'thin',color:{argb:COR.borda}}, right:{style:'thin',color:{argb:COR.borda}} };
+  }
+  function borda(cell){
+    cell.border = { top:{style:'thin',color:{argb:COR.borda}}, bottom:{style:'thin',color:{argb:COR.borda}},
+                    left:{style:'thin',color:{argb:COR.borda}}, right:{style:'thin',color:{argb:COR.borda}} };
+  }
+
+  // tabela manual (para o dashboard): cols = [{h, k, fmt, w}], retorna próxima linha livre
+  function tabelaManual(ws, linha, col, titulo, cols, dados, total, corCab){
+    const tc = ws.getCell(linha, col);
+    ws.mergeCells(linha, col, linha, col + cols.length - 1);
+    tc.value = titulo; tc.font = { bold:true, size:12, color:{argb:COR.escuro} };
+    linha++;
+    cols.forEach((c, i) => { const cell = ws.getCell(linha, col + i); cell.value = c.h; estiloCab(cell, corCab); });
+    ws.getRow(linha).height = 30;
+    linha++;
+    dados.forEach((d, r) => {
+      cols.forEach((c, i) => {
+        const cell = ws.getCell(linha, col + i);
+        cell.value = d[c.k]; if(c.fmt) cell.numFmt = c.fmt; borda(cell);
+        if(r % 2) cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COR.cinza} };
+        if(i === 0) cell.alignment = { wrapText:false };
+      });
+      linha++;
+    });
+    if(total){
+      cols.forEach((c, i) => {
+        const cell = ws.getCell(linha, col + i);
+        cell.value = total[c.k] != null ? total[c.k] : ''; if(c.fmt) cell.numFmt = c.fmt;
+        cell.font = { bold:true }; borda(cell);
+        cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COR.azulClaro} };
+      });
+      linha++;
+    }
+    return linha;
+  }
+
+  // tabela nativa do Excel com filtro, em aba própria
+  function abaTabela(wb, nome, nomeTabela, cols, dados, opts){
+    opts = opts || {};
+    const ws = wb.addWorksheet(nome, { properties:{ tabColor:{argb: opts.tab || COR.azul} }, views:[{ state:'frozen', ySplit: 3, showGridLines:false }] });
+    ws.getCell('A1').value = opts.titulo || nome;
+    ws.getCell('A1').font = { bold:true, size:14, color:{argb:COR.escuro} };
+    ws.getCell('A2').value = opts.sub || '';
+    ws.getCell('A2').font = { italic:true, size:10, color:{argb:'FF6B7280'} };
+    cols.forEach((c, i) => { ws.getColumn(i + 1).width = c.w || 14; });
+    if(!dados.length){ ws.getCell('A4').value = 'Sem dados.'; return ws; }
+    ws.addTable({
+      name: nomeTabela, ref: 'A3', headerRow: true, totalsRow: !!opts.totais,
+      style: { theme: opts.tema || 'TableStyleMedium2', showRowStripes: true },
+      columns: cols.map(c => ({
+        name: c.h, filterButton: true,
+        totalsRowFunction: opts.totais ? (c.tot || 'none') : undefined,
+        totalsRowLabel: opts.totais && c.totLabel ? c.totLabel : undefined
+      })),
+      rows: dados.map(d => cols.map(c => d[c.k] == null ? '' : d[c.k]))
+    });
+    cols.forEach((c, i) => { if(c.fmt) ws.getColumn(i + 1).numFmt = c.fmt; });
+    ws.getRow(3).height = 30;
+    ws.getRow(3).alignment = { vertical:'middle', wrapText:true };
+    (opts.barras || []).forEach(k => {
+      const i = cols.findIndex(c => c.k === k); if(i < 0) return;
+      const L = String.fromCharCode(65 + i);
+      ws.addConditionalFormatting({
+        ref: `${L}4:${L}${3 + dados.length}`,
+        rules: [{ type:'colorScale', priority:1, cfvo:[{type:'min'},{type:'max'}],
+                  color:[{argb:'FFFFFFFF'},{argb: opts.corBarra || 'FF8DB4E2'}] }]
+      });
+    });
+    return ws;
+  }
+
+  function resumoPor(lista, k){
+    const total = lista.length || 1;
+    return Array.from(agrupar(lista, k).entries()).map(([g,l]) => {
+      const ok = l.filter(p => p.motivo).length;
+      return { g, pedidos:l.length, clientes:distintos(l,'cliente'), municipios:distintos(l,'cidade'),
+               ok, pend:l.length - ok, pctJust: l.length ? ok / l.length : 0, pctTotal: l.length / total,
+               peso:soma(l,'peso'), valor:soma(l,'valor'), volume:soma(l,'volume'),
+               motivoPrinc: (() => { const m = Array.from(agrupar(l.filter(p=>p.motivo),'motivo').entries()).sort((a,b)=>b[1].length-a[1].length); return m.length ? m[0][0] : '(pendente)'; })() };
+    }).sort((a,b) => b.pedidos - a.pedidos || b.valor - a.valor);
+  }
+
+  async function gerarPlanilha(){
+    const L = st.pedidos;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Justificativa de Pedidos'; wb.created = new Date();
+    const sessao = (L.find(p => p.sessao) || {}).sessao || '';
+    const gerado = agora();
+    const ok = L.filter(p => p.motivo).length;
+    const comMotivo = L.map(p => Object.assign({}, p, { motivoX: p.motivo || '(Pendente)', status: p.motivo ? 'Justificado' : 'Pendente' }));
+
+    // ---------------- DASHBOARD ----------------
+    const ws = wb.addWorksheet('Dashboard', { properties:{ tabColor:{argb:COR.vermelho} }, views:[{ showGridLines:false }] });
+    ws.getColumn(1).width = 2;
+    for(let c = 2; c <= 15; c++) ws.getColumn(c).width = 14;
+
+    ws.mergeCells('B1:O1');
+    const t = ws.getCell('B1');
+    t.value = 'JUSTIFICATIVA DE PEDIDOS FORA DA ROTEIRIZAÇÃO';
+    t.font = { bold:true, size:18, color:{argb:COR.branco} };
+    t.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COR.escuro} };
+    t.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+    ws.getRow(1).height = 38;
+    ws.mergeCells('B2:O2');
+    const s = ws.getCell('B2');
+    s.value = `${sessao ? 'Sessão: ' + sessao + '   |   ' : ''}Gerado em ${gerado}`;
+    s.font = { italic:true, size:10, color:{argb:'FF374151'} };
+    s.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COR.cinza} };
+    s.alignment = { indent:1 };
+
+    const tiles = [
+      ['PEDIDOS', L.length, FMT.int, COR.azul],
+      ['CLIENTES', distintos(L,'cliente'), FMT.int, COR.azul],
+      ['MUNICÍPIOS', distintos(L,'cidade'), FMT.int, COR.azul],
+      ['JUSTIFICADOS', ok, FMT.int, COR.verde],
+      ['PENDENTES', L.length - ok, FMT.int, COR.laranja],
+      ['PESO (KG)', soma(L,'peso'), FMT.num, COR.escuro],
+      ['VALOR (R$)', soma(L,'valor'), FMT.money, COR.vermelho]
+    ];
+    tiles.forEach((tl, i) => {
+      const c = 2 + i * 2;
+      ws.mergeCells(4, c, 4, c + 1);
+      ws.mergeCells(5, c, 6, c + 1);
+      const a = ws.getCell(4, c), b = ws.getCell(5, c);
+      a.value = tl[0]; a.font = { bold:true, size:9, color:{argb:COR.branco} };
+      a.fill = { type:'pattern', pattern:'solid', fgColor:{argb:tl[3]} }; a.alignment = { horizontal:'center', vertical:'middle' };
+      b.value = tl[1]; b.numFmt = tl[2]; b.font = { bold:true, size:18, color:{argb:tl[3]} };
+      b.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COR.cinza} }; b.alignment = { horizontal:'center', vertical:'middle' };
+      [a, b].forEach(x => x.border = { left:{style:'thin',color:{argb:COR.branco}}, right:{style:'thin',color:{argb:COR.branco}} });
+    });
+    ws.getRow(4).height = 18; ws.getRow(5).height = 22; ws.getRow(6).height = 22;
+    ws.mergeCells('B7:O7');
+    const pc = ws.getCell('B7');
+    pc.value = L.length ? `${fmt(ok / L.length * 100, 1)}% dos pedidos justificados` : '';
+    pc.font = { bold:true, size:10, color:{argb: ok === L.length ? COR.verde : COR.laranja} };
+    pc.alignment = { horizontal:'right' };
+
+    // gráficos
+    const rMot = resumoPor(comMotivo, 'motivoX');
+    const rMun = resumoPor(L, 'cidade');
+    const g1 = grafico('Pedidos por motivo', rMot.map(r => ({ l:r.g, v:r.pedidos, cor: r.g === '(Pendente)' ? '#d97706' : '#1f6feb' })), v => fmt(v,0), '#1f6feb');
+    const g2 = grafico('Valor por município (R$)', rMun.map(r => ({ l:r.g, v:r.valor })), v => 'R$ ' + fmt(v,0), '#c8102e');
+    let linha = 9;
+    const pxRow = 20;
+    let alturaG = 0;
+    if(g1){
+      const id = wb.addImage({ base64: g1.base64, extension:'png' });
+      ws.addImage(id, { tl:{ col:1, row:linha - 1 }, ext:{ width:690, height: g1.h * 690 / g1.w } });
+      alturaG = Math.max(alturaG, g1.h * 690 / g1.w);
+    }
+    if(g2){
+      const id = wb.addImage({ base64: g2.base64, extension:'png' });
+      ws.addImage(id, { tl:{ col:8, row:linha - 1 }, ext:{ width:690, height: g2.h * 690 / g2.w } });
+      alturaG = Math.max(alturaG, g2.h * 690 / g2.w);
+    }
+    if(alturaG) linha += Math.ceil(alturaG / pxRow) + 2;
+
+    // tabelas resumo lado a lado
+    const colsMot = [
+      {h:'Motivo', k:'g'}, {h:'Pedidos', k:'pedidos', fmt:FMT.int}, {h:'% total', k:'pctTotal', fmt:FMT.pct},
+      {h:'Clientes', k:'clientes', fmt:FMT.int}, {h:'Peso (kg)', k:'peso', fmt:FMT.num}, {h:'Valor (R$)', k:'valor', fmt:FMT.money}
+    ];
+    const totMot = { g:'TOTAL', pedidos:L.length, pctTotal:1, clientes:distintos(L,'cliente'), peso:soma(L,'peso'), valor:soma(L,'valor') };
+    const fimA = tabelaManual(ws, linha, 2, 'Resumo por motivo', colsMot, rMot, totMot, COR.escuro);
+    const colsMun = [
+      {h:'Município', k:'g'}, {h:'Pedidos', k:'pedidos', fmt:FMT.int}, {h:'Pendentes', k:'pend', fmt:FMT.int},
+      {h:'% justif.', k:'pctJust', fmt:FMT.pct}, {h:'Peso (kg)', k:'peso', fmt:FMT.num}, {h:'Valor (R$)', k:'valor', fmt:FMT.money}
+    ];
+    const totMun = { g:'TOTAL', pedidos:L.length, pend:L.length - ok, pctJust: L.length ? ok / L.length : 0, peso:soma(L,'peso'), valor:soma(L,'valor') };
+    const fimB = tabelaManual(ws, linha, 9, 'Resumo por município', colsMun, rMun, totMun, COR.escuro);
+    ws.getColumn(2).width = 34; ws.getColumn(9).width = 24;
+    linha = Math.max(fimA, fimB) + 2;
+
+    // top 10 clientes por valor
+    const rCli = resumoPor(L, 'cliente').sort((a,b) => b.valor - a.valor).slice(0, 10)
+      .map(r => Object.assign(r, { cidadeCli: (L.find(p => p.cliente === r.g) || {}).cidade }));
+    tabelaManual(ws, linha, 2, 'Top 10 clientes por valor', [
+      {h:'Cliente', k:'g'}, {h:'Município', k:'cidadeCli'}, {h:'Pedidos', k:'pedidos', fmt:FMT.int},
+      {h:'Peso (kg)', k:'peso', fmt:FMT.num}, {h:'Valor (R$)', k:'valor', fmt:FMT.money}, {h:'Motivo principal', k:'motivoPrinc'}
+    ], rCli, null, COR.vermelho);
+    ws.getColumn(3).width = 18; ws.getColumn(7).width = 30;
+    ws.pageSetup = { orientation:'landscape', fitToPage:true, fitToWidth:1, fitToHeight:0, paperSize:9 };
+
+    // ---------------- PEDIDOS ----------------
+    const colsPed = [
+      {h:'Pedido', k:'pedido', w:13}, {h:'Cliente', k:'cliente', w:40, totLabel:'TOTAL'}, {h:'Município', k:'cidade', w:20},
+      {h:'Valor (R$)', k:'valor', fmt:FMT.money, w:14, tot:'sum'}, {h:'Peso (kg)', k:'peso', fmt:FMT.num, w:11, tot:'sum'},
+      {h:'Volume (m³)', k:'volume', fmt:FMT.vol, w:11, tot:'sum'}, {h:'Itens', k:'itens', fmt:FMT.int, w:8, tot:'sum'},
+      {h:'Cód. rota', k:'codrota', w:10}, {h:'Data término', k:'termino', w:12},
+      {h:'Status', k:'status', w:12}, {h:'Motivo', k:'motivo', w:36}, {h:'Observação', k:'obs', w:36},
+      {h:'Instruções especiais', k:'instr', w:50}, {h:'Estado da ordem', k:'estado', w:14},
+      {h:'Filial', k:'filial', w:7}, {h:'Tipo', k:'tipo', w:9}, {h:'Classe', k:'classe', w:8},
+      {h:'Sessão', k:'sessao', w:42}, {h:'Gerenciado por', k:'gerenciado', w:22},
+      {h:'Incluído em', k:'incluido', w:16}, {h:'Atualizado em', k:'atualizado', w:16}
+    ];
+    const ped = comMotivo.slice().sort((a,b) => a.cidade.localeCompare(b.cidade) || a.cliente.localeCompare(b.cliente) || String(a.pedido).localeCompare(String(b.pedido)));
+    const wsP = abaTabela(wb, 'Pedidos', 'TbPedidos', colsPed, ped,
+      { titulo:'Pedidos fora da roteirização', sub:`${L.length} pedidos · ${sessao}`, totais:true, tab:COR.escuro });
+    const iSt = colsPed.findIndex(c => c.k === 'status') + 1;
+    ped.forEach((p, i) => {
+      const cell = wsP.getCell(4 + i, iSt);
+      cell.font = { bold:true, color:{argb: p.motivo ? COR.verde : COR.laranja} };
+    });
+
+    // ---------------- RESUMOS ----------------
+    abaTabela(wb, 'Por Motivo', 'TbMotivo', [
+      {h:'Motivo', k:'g', w:40, totLabel:'TOTAL'}, {h:'Pedidos', k:'pedidos', fmt:FMT.int, w:11, tot:'sum'},
+      {h:'% do total', k:'pctTotal', fmt:FMT.pct, w:11, tot:'sum'}, {h:'Clientes', k:'clientes', fmt:FMT.int, w:11},
+      {h:'Municípios', k:'municipios', fmt:FMT.int, w:11}, {h:'Peso (kg)', k:'peso', fmt:FMT.num, w:13, tot:'sum'},
+      {h:'Valor (R$)', k:'valor', fmt:FMT.money, w:16, tot:'sum'}
+    ], rMot, { titulo:'Resumo por motivo', sub:'Quantidade de pedidos, peso e valor por motivo', totais:true, barras:['pedidos','valor'], tab:COR.verde });
+
+    abaTabela(wb, 'Por Município', 'TbMunicipio', [
+      {h:'Município', k:'g', w:26, totLabel:'TOTAL'}, {h:'Pedidos', k:'pedidos', fmt:FMT.int, w:11, tot:'sum'},
+      {h:'Clientes', k:'clientes', fmt:FMT.int, w:11}, {h:'Justificados', k:'ok', fmt:FMT.int, w:12, tot:'sum'},
+      {h:'Pendentes', k:'pend', fmt:FMT.int, w:11, tot:'sum'}, {h:'% justificado', k:'pctJust', fmt:FMT.pct, w:13},
+      {h:'Peso (kg)', k:'peso', fmt:FMT.num, w:13, tot:'sum'}, {h:'Valor (R$)', k:'valor', fmt:FMT.money, w:16, tot:'sum'},
+      {h:'Motivo principal', k:'motivoPrinc', w:38}
+    ], rMun, { titulo:'Resumo por município', sub:'Pedidos fora da roteirização por município', totais:true, barras:['pedidos','valor'], tab:COR.azul });
+
+    abaTabela(wb, 'Por Cliente', 'TbCliente', [
+      {h:'Cliente', k:'g', w:44, totLabel:'TOTAL'}, {h:'Município', k:'cidadeCli', w:22}, {h:'Pedidos', k:'pedidos', fmt:FMT.int, w:10, tot:'sum'},
+      {h:'Pendentes', k:'pend', fmt:FMT.int, w:11, tot:'sum'}, {h:'Peso (kg)', k:'peso', fmt:FMT.num, w:12, tot:'sum'},
+      {h:'Valor (R$)', k:'valor', fmt:FMT.money, w:15, tot:'sum'}, {h:'Motivo principal', k:'motivoPrinc', w:38}
+    ], resumoPor(L,'cliente').sort((a,b) => b.valor - a.valor).map(r => Object.assign(r, { cidadeCli:(L.find(p => p.cliente === r.g) || {}).cidade })),
+      { titulo:'Resumo por cliente', sub:'Ordenado por valor', totais:true, barras:['valor'], tab:COR.laranja });
+
+    // matriz município x motivo
+    const motivosUsados = rMot.map(r => r.g);
+    const colsMx = [{h:'Município', k:'g', w:26, totLabel:'TOTAL'}]
+      .concat(motivosUsados.map((m, i) => ({ h: m.slice(0, 60), k:'m' + i, fmt:FMT.int, w:14, tot:'sum' })))
+      .concat([{h:'Total', k:'tot', fmt:FMT.int, w:10, tot:'sum'}]);
+    // nomes de coluna únicos (Excel exige)
+    const vistos = {}; colsMx.forEach(c => { const b = c.h.toLowerCase(); if(vistos[b]){ vistos[b]++; c.h += ' ' + vistos[b]; } else vistos[b] = 1; });
+    const mx = rMun.map(r => {
+      const o = { g:r.g, tot:r.pedidos };
+      const l = comMotivo.filter(p => p.cidade === r.g);
+      motivosUsados.forEach((m, i) => { o['m' + i] = l.filter(p => p.motivoX === m).length || null; });
+      return o;
+    });
+    const wsM = abaTabela(wb, 'Município x Motivo', 'TbMatriz', colsMx, mx,
+      { titulo:'Matriz município x motivo', sub:'Quantidade de pedidos', totais:true, tab:'FF7C3AED', tema:'TableStyleLight9' });
+    if(mx.length && motivosUsados.length){
+      const ult = String.fromCharCode(65 + motivosUsados.length);
+      wsM.addConditionalFormatting({ ref:`B4:${ult}${3 + mx.length}`,
+        rules:[{ type:'colorScale', priority:1, cfvo:[{type:'min'},{type:'max'}], color:[{argb:'FFFFFFFF'},{argb:'FFF8696B'}] }] });
+    }
+
+    // pendentes
+    const pend = ped.filter(p => !p.motivo);
+    if(pend.length){
+      abaTabela(wb, 'Pendentes', 'TbPendentes', colsPed.filter(c => !['status','motivo','obs','atualizado'].includes(c.k)), pend,
+        { titulo:'Pedidos ainda sem justificativa', sub:`${pend.length} pedido(s)`, totais:true, tab:COR.laranja, tema:'TableStyleMedium3' });
+    }
+
+    return wb;
+  }
+  window.__gerarPlanilha = gerarPlanilha; // usado para testes
+
+  $('btnExportar').addEventListener('click', async () => {
+    if(!st.pedidos.length){ toast('Nada para exportar'); return; }
+    if(typeof ExcelJS === 'undefined'){ toast('Biblioteca do Excel não carregou. Verifique a internet e recarregue.'); return; }
+    try{
+      toast('Gerando planilha...');
+      const wb = await gerarPlanilha();
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = `justificativas_${hojeArquivo()}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      toast('Planilha gerada!');
+    }catch(e){
+      console.error(e); toast('Erro ao gerar a planilha: ' + e.message);
+    }
   });
 
   renderTudo();
