@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Justificativa de Pedidos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f6f9; --card:#ffffff; --text:#1c2430; --muted:#6b7686; --line:#e2e7ee;
+    --accent:#c8102e; --accent-2:#1f6feb; --ok:#1a8f4c; --warn:#d97706; --pend-bg:#fff7ed;
+    --ok-bg:#ecfdf3; --input:#ffffff;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0f141a; --card:#171e27; --text:#e6ebf2; --muted:#93a0b2; --line:#263040;
+      --accent:#ef4444; --accent-2:#4c8dff; --ok:#34d399; --warn:#f59e0b; --pend-bg:#2a1f12;
+      --ok-bg:#10261c; --input:#0f141a;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+  header{background:var(--card);border-bottom:3px solid var(--accent);padding:14px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+  header h1{margin:0;font-size:20px}
+  header p{margin:2px 0 0;color:var(--muted);font-size:12px}
+  main{max-width:1500px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+  .card h2{font-size:15px;margin:0 0 10px}
+  textarea,input,select{font:inherit;color:var(--text);background:var(--input);border:1px solid var(--line);border-radius:6px;padding:7px 9px}
+  textarea{width:100%;min-height:120px;font-family:Consolas,monospace;font-size:12px;resize:vertical}
+  button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:6px;padding:7px 12px;cursor:pointer;white-space:nowrap}
+  button:hover{border-color:var(--accent-2)}
+  button.primary{background:var(--accent-2);border-color:var(--accent-2);color:#fff}
+  button.danger{color:var(--accent);border-color:var(--accent)}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .muted{color:var(--muted);font-size:12px}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .kpi .v{font-size:26px;font-weight:700}
+  .kpi .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .kpi.ok .v{color:var(--ok)} .kpi.pend .v{color:var(--warn)}
+  .progress{height:6px;background:var(--line);border-radius:4px;margin-top:8px;overflow:hidden}
+  .progress>div{height:100%;background:var(--ok)}
+  .bars{display:grid;gap:6px}
+  .bar{display:grid;grid-template-columns:260px 1fr 50px;gap:8px;align-items:center;font-size:13px}
+  .bar .track{background:var(--line);border-radius:4px;height:14px;overflow:hidden}
+  .bar .fill{height:100%;background:var(--accent-2)}
+  .bar .n{text-align:right;font-weight:600}
+  .tablewrap{overflow:auto;max-height:65vh;border:1px solid var(--line);border-radius:8px}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle;white-space:nowrap}
+  th{position:sticky;top:0;background:var(--card);z-index:2;font-size:12px;text-transform:uppercase;color:var(--muted)}
+  tr.pend td{background:var(--pend-bg)}
+  tr.ok td{background:var(--ok-bg)}
+  td select{min-width:230px}
+  td input.obs{min-width:240px;width:100%}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+  .badge.ok{background:var(--ok);color:#fff}
+  .badge.pend{background:var(--warn);color:#fff}
+  .sep{width:1px;height:26px;background:var(--line);margin:0 4px}
+  details summary{cursor:pointer;font-weight:600}
+  .toast{position:fixed;bottom:18px;right:18px;background:var(--text);color:var(--bg);padding:10px 14px;border-radius:8px;opacity:0;transition:.25s;pointer-events:none}
+  .toast.show{opacity:1}
+  @media (max-width:800px){.kpis{grid-template-columns:repeat(2,1fr)}.bar{grid-template-columns:140px 1fr 40px}}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Justificativa de Pedidos fora da Roteirização</h1>
+    <p>Cole os pedidos do Excel, informe o motivo e exporte. Os dados ficam salvos neste navegador.</p>
+  </div>
+  <div class="row">
+    <button id="btnCopiar">Copiar p/ Excel</button>
+    <button id="btnExportar" class="primary">Exportar Excel</button>
+    <button id="btnLimpar" class="danger">Limpar tudo</button>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <h2>1. Colar pedidos</h2>
+    <textarea id="paste" placeholder="Copie as linhas no Excel (com o cabeçalho) e cole aqui com Ctrl+V"></textarea>
+    <div class="row" style="margin-top:8px">
+      <label>Coluna do pedido: <select id="keyCol"><option value="">(cole os dados)</option></select></label>
+      <label>Modo:
+        <select id="modo">
+          <option value="add">Adicionar / atualizar à lista atual</option>
+          <option value="replace">Substituir a lista (mantém justificativas de pedidos repetidos)</option>
+        </select>
+      </label>
+      <button id="btnCarregar" class="primary">Carregar pedidos</button>
+      <span id="pasteInfo" class="muted"></span>
+    </div>
+  </section>
+
+  <section class="kpis">
+    <div class="kpi"><div class="l">Total de pedidos</div><div class="v" id="kTotal">0</div></div>
+    <div class="kpi ok"><div class="l">Justificados</div><div class="v" id="kOk">0</div></div>
+    <div class="kpi pend"><div class="l">Pendentes</div><div class="v" id="kPend">0</div></div>
+    <div class="kpi"><div class="l">% Justificado</div><div class="v" id="kPct">0%</div><div class="progress"><div id="kBar" style="width:0%"></div></div></div>
+  </section>
+
+  <section class="card">
+    <h2>Resumo por motivo</h2>
+    <div class="bars" id="resumo"><span class="muted">Nenhum pedido justificado ainda.</span></div>
+  </section>
+
+  <section class="card">
+    <h2>2. Justificar</h2>
+    <div class="row" style="margin-bottom:10px">
+      <input id="busca" placeholder="Buscar em qualquer coluna..." style="min-width:240px">
+      <select id="fStatus">
+        <option value="">Todos os status</option>
+        <option value="pend">Pendentes</option>
+        <option value="ok">Justificados</option>
+      </select>
+      <select id="fMotivo"><option value="">Todos os motivos</option></select>
+      <span class="sep"></span>
+      <span class="muted"><b id="nSel">0</b> selecionado(s)</span>
+      <select id="bulkMotivo"></select>
+      <input id="bulkObs" placeholder="Observação em lote (opcional)" style="min-width:200px">
+      <button id="btnAplicar" class="primary">Aplicar aos selecionados</button>
+      <button id="btnRemover" class="danger">Remover selecionados</button>
+    </div>
+    <div class="muted" id="infoFiltro" style="margin-bottom:6px"></div>
+    <div class="tablewrap">
+      <table>
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Gerenciar lista de motivos</summary>
+      <p class="muted">Um motivo por linha. Pedidos já justificados com um motivo removido continuam com ele.</p>
+      <textarea id="motivosTxt" style="min-height:180px"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button id="btnSalvarMotivos" class="primary">Salvar motivos</button>
+        <button id="btnMotivosPadrao">Restaurar padrão</button>
+      </div>
+    </details>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  const LS_KEY = 'justificativa_pedidos_v1';
+  const MOTIVOS_PADRAO = [
+    'Bloqueio financeiro / crédito',
+    'Falta de estoque / corte',
+    'Fora do horário de corte',
+    'Cliente fechado / sem recebimento',
+    'Restrição de janela de entrega',
+    'Restrição de veículo / acesso',
+    'Excede capacidade (peso/volume)',
+    'Sem veículo disponível',
+    'Endereço / praça inválida',
+    'Reprogramado a pedido do comercial',
+    'Reprogramado a pedido do cliente',
+    'Pedido duplicado',
+    'Pedido cancelado',
+    'Aguardando faturamento',
+    'Outros'
+  ];
+
+  // ---------- Estado ----------
+  function novoEstado(){
+    return { columns: [], keyCol: '', rows: [], motivos: MOTIVOS_PADRAO.slice(), seq: 1 };
+  }
+  function carregar(){
+    try{
+      const s = JSON.parse(localStorage.getItem(LS_KEY));
+      if(s && Array.isArray(s.rows)){
+        if(!Array.isArray(s.motivos) || !s.motivos.length) s.motivos = MOTIVOS_PADRAO.slice();
+        if(!s.seq) s.seq = s.rows.length + 1;
+        return s;
+      }
+    }catch(e){}
+    return novoEstado();
+  }
+  let st = carregar();
+  function salvar(){
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(st)); }
+    catch(e){ toast('Não foi possível salvar no navegador'); }
+  }
+  const selecionados = new Set();
+  let parsed = null;
+
+  // ---------- Util ----------
+  const $ = id => document.getElementById(id);
+  function esc(v){
+    return String(v == null ? '' : v)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function agora(){
+    const d = new Date(), p = n => String(n).padStart(2,'0');
+    return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function hojeArquivo(){
+    const d = new Date(), p = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  }
+  let toastT;
+  function toast(msg){
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('show'), 2200);
+  }
+
+  // ---------- Colagem ----------
+  function parseTexto(texto){
+    texto = (texto || '').replace(/\r/g,'');
+    const linhas = texto.split('\n').filter(l => l.trim() !== '');
+    if(!linhas.length) return null;
+    const primeira = linhas[0];
+    const sep = primeira.includes('\t') ? '\t' : (primeira.includes(';') ? ';' : '\t');
+    const dados = linhas.map(l => l.split(sep).map(c => c.trim()));
+    const nCols = Math.max(...dados.map(r => r.length));
+
+    const temCabecalho = dados[0].some(h => /[A-Za-zÀ-ú]/.test(h)) && dados.length > 1;
+    let header;
+    let corpo;
+    if(temCabecalho){
+      header = dados[0].slice();
+      corpo = dados.slice(1);
+    }else{
+      header = [];
+      corpo = dados;
+    }
+    for(let i = 0; i < nCols; i++){
+      if(!header[i]) header[i] = 'Coluna ' + (i+1);
+    }
+    // nomes únicos
+    const vistos = {};
+    header = header.map(h => {
+      const base = h.toUpperCase();
+      if(vistos[base]){ vistos[base]++; return h + ' ' + vistos[base]; }
+      vistos[base] = 1; return h;
+    });
+    return { header, corpo };
+  }
+
+  function adivinharChave(header){
+    let i = header.findIndex(h => /pedido/i.test(h));
+    if(i < 0) i = header.findIndex(h => /\b(nf|nota|ordem|doc|order)\b/i.test(h));
+    return i < 0 ? 0 : i;
+  }
+
+  $('paste').addEventListener('input', () => {
+    parsed = parseTexto($('paste').value);
+    const sel = $('keyCol');
+    if(!parsed){ sel.innerHTML = '<option value="">(cole os dados)</option>'; $('pasteInfo').textContent=''; return; }
+    const guess = (st.keyCol && parsed.header.includes(st.keyCol))
+      ? parsed.header.indexOf(st.keyCol) : adivinharChave(parsed.header);
+    sel.innerHTML = parsed.header.map((h,i) => `<option value="${i}" ${i===guess?'selected':''}>${esc(h)}</option>`).join('');
+    $('pasteInfo').textContent = `${parsed.corpo.length} linha(s) e ${parsed.header.length} coluna(s) detectadas.`;
+  });
+
+  $('btnCarregar').addEventListener('click', () => {
+    if(!parsed){ parsed = parseTexto($('paste').value); }
+    if(!parsed || !parsed.corpo.length){ toast('Cole os dados primeiro'); return; }
+    const keyIdx = parseInt($('keyCol').value || '0', 10);
+    const keyName = parsed.header[keyIdx];
+    const modo = $('modo').value;
+
+    // une colunas
+    const cols = st.columns.slice();
+    parsed.header.forEach(h => { if(!cols.includes(h)) cols.push(h); });
+
+    const antigos = new Map();
+    st.rows.forEach(r => antigos.set(String(r.key), r));
+
+    const novasLinhas = modo === 'replace' ? [] : st.rows.slice();
+    const indiceNovas = new Map();
+    novasLinhas.forEach((r,i) => indiceNovas.set(String(r.key), i));
+
+    let add = 0, upd = 0;
+    const quando = agora();
+    parsed.corpo.forEach(lin => {
+      const data = {};
+      parsed.header.forEach((h,i) => data[h] = lin[i] != null ? lin[i] : '');
+      let key = String(data[keyName] || '').trim();
+      if(!key) key = '__sem_chave_' + (st.seq);
+
+      if(indiceNovas.has(key)){
+        const r = novasLinhas[indiceNovas.get(key)];
+        Object.assign(r.data, data);
+        upd++;
+      }else{
+        const antigo = antigos.get(key);
+        const r = {
+          id: st.seq++,
+          key,
+          data: antigo ? Object.assign({}, antigo.data, data) : data,
+          motivo: antigo ? antigo.motivo : '',
+          obs: antigo ? antigo.obs : '',
+          atualizado: antigo ? antigo.atualizado : '',
+          incluido: antigo ? antigo.incluido : quando
+        };
+        indiceNovas.set(key, novasLinhas.length);
+        novasLinhas.push(r);
+        antigo ? upd++ : add++;
+      }
+    });
+
+    st.columns = cols;
+    st.keyCol = keyName;
+    st.rows = novasLinhas;
+    selecionados.clear();
+    salvar();
+    $('paste').value = ''; parsed = null;
+    $('keyCol').innerHTML = '<option value="">(cole os dados)</option>';
+    $('pasteInfo').textContent = '';
+    renderTudo();
+    toast(`${add} novo(s), ${upd} atualizado(s)`);
+  });
+
+  // ---------- Filtros ----------
+  function filtrados(){
+    const q = $('busca').value.trim().toLowerCase();
+    const fs = $('fStatus').value;
+    const fm = $('fMotivo').value;
+    return st.rows.filter(r => {
+      if(fs === 'ok' && !r.motivo) return false;
+      if(fs === 'pend' && r.motivo) return false;
+      if(fm && r.motivo !== fm) return false;
+      if(q){
+        const txt = (Object.values(r.data).join(' ') + ' ' + r.motivo + ' ' + r.obs).toLowerCase();
+        if(!txt.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  // ---------- Render ----------
+  function opcoesMotivo(atual){
+    let lista = st.motivos.slice();
+    if(atual && !lista.includes(atual)) lista = [atual].concat(lista);
+    return '<option value="">— selecione —</option>' +
+      lista.map(m => `<option ${m===atual?'selected':''}>${esc(m)}</option>`).join('');
+  }
+
+  function renderSelectsMotivo(){
+    const usados = new Set(st.rows.map(r => r.motivo).filter(Boolean));
+    const todos = Array.from(new Set(st.motivos.concat(Array.from(usados))));
+    const fm = $('fMotivo').value;
+    $('fMotivo').innerHTML = '<option value="">Todos os motivos</option>' +
+      todos.map(m => `<option ${m===fm?'selected':''}>${esc(m)}</option>`).join('');
+    const bm = $('bulkMotivo').value;
+    $('bulkMotivo').innerHTML = '<option value="">Motivo em lote...</option>' +
+      st.motivos.map(m => `<option ${m===bm?'selected':''}>${esc(m)}</option>`).join('') +
+      '<option value="__limpar__">(limpar justificativa)</option>';
+    $('motivosTxt').value = st.motivos.join('\n');
+  }
+
+  function renderKpis(){
+    const total = st.rows.length;
+    const ok = st.rows.filter(r => r.motivo).length;
+    const pend = total - ok;
+    const pct = total ? Math.round(ok / total * 100) : 0;
+    $('kTotal').textContent = total.toLocaleString('pt-BR');
+    $('kOk').textContent = ok.toLocaleString('pt-BR');
+    $('kPend').textContent = pend.toLocaleString('pt-BR');
+    $('kPct').textContent = pct + '%';
+    $('kBar').style.width = pct + '%';
+
+    const cont = {};
+    st.rows.forEach(r => { if(r.motivo) cont[r.motivo] = (cont[r.motivo] || 0) + 1; });
+    const arr = Object.entries(cont).sort((a,b) => b[1] - a[1]);
+    if(!arr.length){ $('resumo').innerHTML = '<span class="muted">Nenhum pedido justificado ainda.</span>'; return; }
+    const max = arr[0][1];
+    $('resumo').innerHTML = arr.map(([m,n]) => `
+      <div class="bar">
+        <span title="${esc(m)}" style="overflow:hidden;text-overflow:ellipsis">${esc(m)}</span>
+        <div class="track"><div class="fill" style="width:${(n/max*100).toFixed(1)}%"></div></div>
+        <span class="n">${n}</span>
+      </div>`).join('');
+  }
+
+  function renderTabela(){
+    const lista = filtrados();
+    const cols = st.columns;
+    const todosSel = lista.length > 0 && lista.every(r => selecionados.has(r.id));
+    $('thead').innerHTML = `<tr>
+      <th><input type="checkbox" id="chkAll" ${todosSel?'checked':''} title="Selecionar todos os filtrados"></th>
+      <th>Status</th>
+      ${cols.map(c => `<th>${esc(c)}</th>`).join('')}
+      <th>Motivo</th><th>Observação</th><th>Atualizado</th>
+    </tr>`;
+
+    if(!st.rows.length){
+      $('tbody').innerHTML = `<tr><td colspan="${cols.length+5}" class="muted" style="padding:20px">Nenhum pedido carregado. Cole os dados acima.</td></tr>`;
+    }else if(!lista.length){
+      $('tbody').innerHTML = `<tr><td colspan="${cols.length+5}" class="muted" style="padding:20px">Nenhum pedido encontrado com esses filtros.</td></tr>`;
+    }else{
+      $('tbody').innerHTML = lista.map(r => `
+        <tr class="${r.motivo?'ok':'pend'}" data-id="${r.id}">
+          <td><input type="checkbox" class="chk" ${selecionados.has(r.id)?'checked':''}></td>
+          <td>${r.motivo ? '<span class="badge ok">Justificado</span>' : '<span class="badge pend">Pendente</span>'}</td>
+          ${cols.map(c => `<td>${esc(r.data[c])}</td>`).join('')}
+          <td><select class="mot">${opcoesMotivo(r.motivo)}</select></td>
+          <td><input class="obs" value="${esc(r.obs)}" placeholder="Detalhe (opcional)"></td>
+          <td class="muted upd">${esc(r.atualizado)}</td>
+        </tr>`).join('');
+    }
+    $('infoFiltro').textContent = `Exibindo ${lista.length} de ${st.rows.length} pedido(s).`;
+    $('nSel').textContent = selecionados.size;
+  }
+
+  function renderTudo(){ renderSelectsMotivo(); renderKpis(); renderTabela(); }
+
+  // ---------- Eventos da tabela ----------
+  function linhaPorEl(el){
+    const tr = el.closest('tr[data-id]');
+    if(!tr) return null;
+    const id = parseInt(tr.dataset.id, 10);
+    return { tr, r: st.rows.find(x => x.id === id) };
+  }
+
+  $('tbody').addEventListener('change', e => {
+    const x = linhaPorEl(e.target); if(!x || !x.r) return;
+    if(e.target.classList.contains('chk')){
+      e.target.checked ? selecionados.add(x.r.id) : selecionados.delete(x.r.id);
+      $('nSel').textContent = selecionados.size;
+      return;
+    }
+    if(e.target.classList.contains('mot')){
+      x.r.motivo = e.target.value;
+      x.r.atualizado = agora();
+      salvar();
+      x.tr.className = x.r.motivo ? 'ok' : 'pend';
+      x.tr.children[1].innerHTML = x.r.motivo ? '<span class="badge ok">Justificado</span>' : '<span class="badge pend">Pendente</span>';
+      x.tr.querySelector('.upd').textContent = x.r.atualizado;
+      renderKpis(); renderSelectsMotivo();
+    }
+  });
+
+  $('tbody').addEventListener('input', e => {
+    if(!e.target.classList.contains('obs')) return;
+    const x = linhaPorEl(e.target); if(!x || !x.r) return;
+    x.r.obs = e.target.value;
+    x.r.atualizado = agora();
+    x.tr.querySelector('.upd').textContent = x.r.atualizado;
+    salvar();
+  });
+
+  $('thead').addEventListener('change', e => {
+    if(e.target.id !== 'chkAll') return;
+    const lista = filtrados();
+    lista.forEach(r => e.target.checked ? selecionados.add(r.id) : selecionados.delete(r.id));
+    renderTabela();
+  });
+
+  ['busca','fStatus','fMotivo'].forEach(id => $(id).addEventListener('input', renderTabela));
+
+  // ---------- Ações em lote ----------
+  $('btnAplicar').addEventListener('click', () => {
+    if(!selecionados.size){ toast('Selecione pedidos na tabela'); return; }
+    const m = $('bulkMotivo').value;
+    const o = $('bulkObs').value.trim();
+    if(!m && !o){ toast('Escolha um motivo ou escreva uma observação'); return; }
+    const quando = agora();
+    st.rows.forEach(r => {
+      if(!selecionados.has(r.id)) return;
+      if(m === '__limpar__'){ r.motivo = ''; r.obs = ''; }
+      else{
+        if(m) r.motivo = m;
+        if(o) r.obs = o;
+      }
+      r.atualizado = quando;
+    });
+    const n = selecionados.size;
+    selecionados.clear();
+    $('bulkObs').value = '';
+    salvar(); renderTudo();
+    toast(`${n} pedido(s) atualizado(s)`);
+  });
+
+  $('btnRemover').addEventListener('click', () => {
+    if(!selecionados.size){ toast('Selecione pedidos na tabela'); return; }
+    if(!confirm(`Remover ${selecionados.size} pedido(s) da lista?`)) return;
+    st.rows = st.rows.filter(r => !selecionados.has(r.id));
+    selecionados.clear();
+    salvar(); renderTudo();
+  });
+
+  $('btnLimpar').addEventListener('click', () => {
+    if(!st.rows.length){ toast('A lista já está vazia'); return; }
+    if(!confirm('Apagar TODOS os pedidos e justificativas deste navegador? Exporte antes se precisar.')) return;
+    const motivos = st.motivos;
+    st = novoEstado(); st.motivos = motivos;
+    selecionados.clear();
+    salvar(); renderTudo();
+  });
+
+  // ---------- Motivos ----------
+  $('btnSalvarMotivos').addEventListener('click', () => {
+    const lista = $('motivosTxt').value.split('\n').map(s => s.trim()).filter(Boolean);
+    if(!lista.length){ toast('Informe ao menos um motivo'); return; }
+    st.motivos = Array.from(new Set(lista));
+    salvar(); renderTudo(); toast('Motivos salvos');
+  });
+  $('btnMotivosPadrao').addEventListener('click', () => {
+    st.motivos = MOTIVOS_PADRAO.slice();
+    salvar(); renderTudo(); toast('Motivos padrão restaurados');
+  });
+
+  // ---------- Exportação ----------
+  function linhasExport(){
+    return st.rows.map(r => {
+      const o = {};
+      st.columns.forEach(c => o[c] = r.data[c] != null ? r.data[c] : '');
+      o['STATUS'] = r.motivo ? 'Justificado' : 'Pendente';
+      o['MOTIVO'] = r.motivo;
+      o['OBSERVAÇÃO'] = r.obs;
+      o['INCLUÍDO EM'] = r.incluido || '';
+      o['ATUALIZADO EM'] = r.atualizado || '';
+      return o;
+    });
+  }
+
+  $('btnExportar').addEventListener('click', () => {
+    if(!st.rows.length){ toast('Nada para exportar'); return; }
+    const linhas = linhasExport();
+    if(typeof XLSX === 'undefined'){
+      // fallback CSV
+      const cab = Object.keys(linhas[0]);
+      const csv = [cab.join(';')].concat(linhas.map(l => cab.map(c => '"' + String(l[c]).replace(/"/g,'""') + '"').join(';'))).join('\r\n');
+      const blob = new Blob(['\ufeff' + csv], {type:'text/csv;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = `justificativas_${hojeArquivo()}.csv`; a.click();
+      return;
+    }
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(linhas);
+    ws['!cols'] = Object.keys(linhas[0]).map(k => ({ wch: Math.min(40, Math.max(k.length + 2, 12)) }));
+    XLSX.utils.book_append_sheet(wb, ws, 'Justificativas');
+
+    const cont = {};
+    st.rows.forEach(r => { const k = r.motivo || '(Pendente)'; cont[k] = (cont[k] || 0) + 1; });
+    const total = st.rows.length;
+    const resumo = Object.entries(cont).sort((a,b) => b[1] - a[1])
+      .map(([m,n]) => ({ 'MOTIVO': m, 'QTD PEDIDOS': n, '% DO TOTAL': Math.round(n / total * 1000) / 10 }));
+    resumo.push({ 'MOTIVO': 'TOTAL', 'QTD PEDIDOS': total, '% DO TOTAL': 100 });
+    const ws2 = XLSX.utils.json_to_sheet(resumo);
+    ws2['!cols'] = [{wch:40},{wch:14},{wch:12}];
+    XLSX.utils.book_append_sheet(wb, ws2, 'Resumo');
+
+    XLSX.writeFile(wb, `justificativas_${hojeArquivo()}.xlsx`);
+  });
+
+  $('btnCopiar').addEventListener('click', async () => {
+    if(!st.rows.length){ toast('Nada para copiar'); return; }
+    const linhas = linhasExport();
+    const cab = Object.keys(linhas[0]);
+    const tsv = [cab.join('\t')].concat(linhas.map(l => cab.map(c => String(l[c]).replace(/[\t\n]/g,' ')).join('\t'))).join('\n');
+    try{ await navigator.clipboard.writeText(tsv); toast('Copiado! Cole no Excel com Ctrl+V'); }
+    catch(e){ toast('Não foi possível copiar'); }
+  });
+
+  renderTudo();
+})();
+</script>
+</body>
+</html>
