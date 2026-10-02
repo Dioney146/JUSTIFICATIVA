@@ -88,7 +88,7 @@
   </div>
   <div class="row">
     <button id="btnCopiar">Copiar p/ Excel</button>
-    <button id="btnExportar" class="primary">Gerar planilha (dashboard)</button>
+    <button id="btnExportar" class="primary">Gerar Excel (com fórmulas)</button>
     <button id="btnLimpar" class="danger">Limpar tudo</button>
   </div>
 </header>
@@ -135,7 +135,6 @@
       <select id="grpBy">
         <option value="cidade">por Município</option>
         <option value="cliente">por Cliente</option>
-        <option value="codrota">por Cód. rota</option>
         <option value="termino">por Data de término</option>
       </select>
       <label class="muted"><input type="checkbox" id="grpSobrescrever"> sobrescrever já justificados</label>
@@ -155,7 +154,6 @@
     <div class="row" style="margin-bottom:10px">
       <input id="busca" placeholder="Buscar cliente, pedido, instrução (ex.: balsa, congelado)..." style="min-width:280px">
       <select id="fMun"></select>
-      <select id="fRota"></select>
       <select id="fStatus">
         <option value="">Todos os status</option>
         <option value="pend">Pendentes</option>
@@ -204,6 +202,7 @@
 (function(){
   const LS_KEY = 'justificativa_pedidos_v3';
   const MOTIVOS_PADRAO = [
+    'Produto descongelado',
     'Bloqueio financeiro / crédito',
     'Falta de estoque / corte',
     'Fora do horário de corte',
@@ -224,6 +223,10 @@
     'Outros'
   ];
 
+  // Regra automática: pedido de MANAUS com "congelado" nas instruções especiais
+  const MOTIVO_CONGELADO = 'Produto descongelado';
+  function regraCongelado(p){ return norm(p.cidade) === 'manaus' && norm(p.instr).includes('congelad'); }
+
   // Campos: chave interna, rótulo, nomes possíveis no RoadNet, tipo, mostrar na tela
   const CAMPOS = [
     {k:'pedido',   l:'Pedido',               src:['Número do pedido','Numero do pedido','Pedido'], t:'txt',   tela:true},
@@ -233,14 +236,9 @@
     {k:'peso',     l:'Peso (kg)',            src:['Entrega Peso','Entrega Total Peso'],             t:'num',   tela:true},
     {k:'volume',   l:'Volume (m³)',          src:['Entrega Volume','Entrega Total Volume'],         t:'vol',   tela:true},
     {k:'itens',    l:'Itens',                src:['Itens do pedido'],                               t:'int',   tela:true},
-    {k:'codrota',  l:'Cód. rota',            src:['CODROTA'],                                       t:'txt',   tela:true},
     {k:'instr',    l:'Instruções especiais', src:['Instruções especiais'],                          t:'instr', tela:true},
     {k:'termino',  l:'Data término',         src:['Data de término'],                               t:'txt',   tela:true},
     {k:'descrota', l:'Descrição da rota',    src:['Descrição da rota','DESCRICAOROTA'],             t:'txt',   tela:false},
-    {k:'estado',   l:'Estado da ordem',      src:['Estado da Ordem'],                               t:'txt',   tela:false},
-    {k:'filial',   l:'Filial',               src:['FILIAL'],                                        t:'txt',   tela:false},
-    {k:'tipo',     l:'Tipo',                 src:['Tipo'],                                          t:'txt',   tela:false},
-    {k:'classe',   l:'Classe da ordem',      src:['Classe da Ordem'],                               t:'txt',   tela:false},
     {k:'sessao',   l:'Sessão',               src:['Sessão de roteirização'],                        t:'txt',   tela:false},
     {k:'gerenciado',l:'Gerenciado por',      src:['Gerenciado Por'],                                t:'txt',   tela:false}
   ];
@@ -253,6 +251,7 @@
       const s = JSON.parse(localStorage.getItem(LS_KEY));
       if(s && Array.isArray(s.pedidos)){
         if(!Array.isArray(s.motivos) || !s.motivos.length) s.motivos = MOTIVOS_PADRAO.slice();
+        if(!s.motivos.includes(MOTIVO_CONGELADO)) s.motivos.unshift(MOTIVO_CONGELADO);
         if(!s.seq) s.seq = s.pedidos.length + 1;
         return s;
       }
@@ -365,28 +364,36 @@
       base.push(reg);
       ant ? mantidos++ : novos++;
     });
+    let auto = 0;
+    base.forEach(p => {
+      if(!p.motivo && regraCongelado(p)){
+        p.motivo = MOTIVO_CONGELADO;
+        if(!p.obs) p.obs = 'Justificado automaticamente (instrução: congelado)';
+        p.atualizado = quando; auto++;
+      }
+    });
+    if(!st.motivos.includes(MOTIVO_CONGELADO)) st.motivos.unshift(MOTIVO_CONGELADO);
     st.pedidos = base;
     selecionados.clear();
     salvar();
     $('paste').value = ''; $('pasteInfo').textContent = '';
     limparFiltros(false);
     renderTudo();
-    toast(`${novos} pedido(s) novo(s)${mantidos ? `, ${mantidos} já existente(s)` : ''}`);
+    toast(`${novos} pedido(s) novo(s)${mantidos ? `, ${mantidos} já existente(s)` : ''}${auto ? ` · ${auto} congelado(s) de Manaus justificado(s) automaticamente` : ''}`);
   });
 
   // ---------- Filtros ----------
   function filtrados(){
     const q = norm($('busca').value);
-    const fm = $('fMun').value, fr = $('fRota').value, fs = $('fStatus').value, fmo = $('fMotivo').value;
+    const fm = $('fMun').value, fs = $('fStatus').value, fmo = $('fMotivo').value;
     return st.pedidos.filter(p => {
       if(fm && p.cidade !== fm) return false;
-      if(fr && p.codrota !== fr) return false;
       if(fs === 'ok' && !p.motivo) return false;
       if(fs === 'pend' && p.motivo) return false;
       if(fmo === '__pend__' && p.motivo) return false;
       if(fmo && fmo !== '__pend__' && p.motivo !== fmo) return false;
       if(q){
-        const txt = norm([p.pedido,p.cliente,p.cidade,p.instr,p.codrota,p.termino,p.motivo,p.obs].join(' '));
+        const txt = norm([p.pedido,p.cliente,p.cidade,p.instr,p.termino,p.motivo,p.obs].join(' '));
         if(!txt.includes(q)) return false;
       }
       return true;
@@ -404,7 +411,7 @@
     });
   }
   function limparFiltros(render){
-    $('busca').value = ''; $('fMun').value = ''; $('fRota').value = ''; $('fStatus').value = ''; $('fMotivo').value = '';
+    $('busca').value = ''; $('fMun').value = ''; $('fStatus').value = ''; $('fMotivo').value = '';
     if(render !== false){ renderFiltros(); renderTabela(); renderGrupos(); renderBarras(); }
   }
 
@@ -427,14 +434,11 @@
   }
 
   function renderFiltros(){
-    const fm = $('fMun').value, fr = $('fRota').value, fmo = $('fMotivo').value;
+    const fm = $('fMun').value, fmo = $('fMotivo').value;
     const muns = Array.from(agrupar(st.pedidos,'cidade').entries()).sort((a,b) => b[1].length - a[1].length);
     $('fMun').innerHTML = '<option value="">Todos os municípios</option>' +
       muns.map(([m,l]) => `<option value="${esc(m)}">${esc(m)} (${l.length})</option>`).join('');
     $('fMun').value = fm; if($('fMun').value !== fm) $('fMun').value = '';
-    const rotas = Array.from(agrupar(st.pedidos,'codrota').keys()).sort((a,b) => String(a).localeCompare(String(b),'pt-BR',{numeric:true}));
-    $('fRota').innerHTML = '<option value="">Todas as rotas</option>' + rotas.map(r => `<option value="${esc(r)}">Rota ${esc(r)}</option>`).join('');
-    $('fRota').value = fr; if($('fRota').value !== fr) $('fRota').value = '';
     const usados = new Set(st.pedidos.map(p => p.motivo).filter(Boolean));
     const todos = Array.from(new Set(st.motivos.concat(Array.from(usados))));
     $('fMotivo').innerHTML = '<option value="">Todos os motivos</option><option value="__pend__">(sem motivo)</option>' +
@@ -499,7 +503,7 @@
 
   function renderGrupos(){
     const k = $('grpBy').value;
-    const nomes = {cidade:'Município', cliente:'Cliente', codrota:'Cód. rota', termino:'Data término'};
+    const nomes = {cidade:'Município', cliente:'Cliente', termino:'Data término'};
     const lista = filtrados();
     const grupos = Array.from(agrupar(lista, k).entries()).sort((a,b) => b[1].length - a[1].length || String(a[0]).localeCompare(b[0]));
     $('grpHead').innerHTML = `<tr><th class="nosort">${nomes[k]}</th><th class="num nosort">Pedidos</th><th class="num nosort">Pendentes</th>
@@ -540,9 +544,9 @@
       <th class="nosort"><input type="checkbox" id="chkAll" ${todosSel?'checked':''} title="Selecionar todos os filtrados"></th>
       <th data-sort="status">Status${seta('status')}</th>
       ${cols.map(c => `<th data-sort="${c.k}" class="${['money','num','vol','int'].includes(c.t)?'num':''}">${esc(c.l)}${seta(c.k)}</th>`).join('')}
-      <th data-sort="motivo">Motivo${seta('motivo')}</th><th class="nosort">Observação</th><th class="nosort">Atualizado</th>
+      <th data-sort="motivo">Motivo${seta('motivo')}</th><th class="nosort">Observação</th>
     </tr>`;
-    const nCols = cols.length + 5;
+    const nCols = cols.length + 4;
     if(!st.pedidos.length){
       $('tbody').innerHTML = `<tr><td colspan="${nCols}" class="muted" style="padding:20px">Nenhum pedido carregado. Cole os dados no passo 1.</td></tr>`;
     }else if(!lista.length){
@@ -555,7 +559,6 @@
           ${cols.map(c => celula(p, c)).join('')}
           <td><select class="mot">${opcoesMotivo(p.motivo)}</select></td>
           <td><input class="obs" value="${esc(p.obs)}" placeholder="Detalhe (opcional)"></td>
-          <td class="muted upd">${esc(p.atualizado)}</td>
         </tr>`).join('');
     }
     $('infoFiltro').textContent = `Exibindo ${lista.length} de ${st.pedidos.length} pedido(s) · ` +
@@ -574,7 +577,7 @@
   $('chipsMun').addEventListener('click', e => { const c = e.target.closest('.chip'); if(c) setMun(c.dataset.mun); });
   $('barMun').addEventListener('click', e => { const b = e.target.closest('.bar'); if(b) setMun(b.dataset.mun); });
 
-  ['busca','fMun','fRota','fStatus','fMotivo'].forEach(id => $(id).addEventListener('input', () => {
+  ['busca','fMun','fStatus','fMotivo'].forEach(id => $(id).addEventListener('input', () => {
     if(id === 'fMun') renderFiltros();
     renderBarras(); renderGrupos(); renderTabela();
   }));
@@ -608,7 +611,6 @@
       x.p.motivo = e.target.value; x.p.atualizado = agora(); salvar();
       x.tr.className = x.p.motivo ? 'ok' : 'pend';
       x.tr.querySelector('.st').innerHTML = x.p.motivo ? '<span class="badge ok">Justificado</span>' : '<span class="badge pend">Pendente</span>';
-      x.tr.querySelector('.upd').textContent = x.p.atualizado;
       renderResumo();
     }
   });
@@ -616,7 +618,6 @@
     if(!e.target.classList.contains('obs')) return;
     const x = linhaPorEl(e.target); if(!x || !x.p) return;
     x.p.obs = e.target.value; x.p.atualizado = agora();
-    x.tr.querySelector('.upd').textContent = x.p.atualizado;
     salvar();
   });
 
@@ -687,308 +688,355 @@
 
   $('btnCopiar').addEventListener('click', async () => {
     if(!st.pedidos.length){ toast('Nada para copiar'); return; }
-    const cab = CAMPOS.map(c => c.l).concat(['Status','Motivo','Observação','Atualizado em']);
+    const cab = CAMPOS.map(c => c.l).concat(['Status','Motivo','Observação']);
     const val = (v, k) => NUMERICOS.includes(k) ? String(v).replace('.', ',') : String(v == null ? '' : v).replace(/[\t\n]/g,' ');
-    const linhas = st.pedidos.map(p => CAMPOS.map(c => val(p[c.k], c.k)).concat([p.motivo ? 'Justificado' : 'Pendente', p.motivo, p.obs, p.atualizado]).join('\t'));
+    const linhas = st.pedidos.map(p => CAMPOS.map(c => val(p[c.k], c.k)).concat([p.motivo ? 'Justificado' : 'Pendente', p.motivo, p.obs]).join('\t'));
     try{ await navigator.clipboard.writeText([cab.join('\t')].concat(linhas).join('\n')); toast('Copiado! Cole no Excel com Ctrl+V'); }
     catch(e){ toast('Não foi possível copiar'); }
   });
 
   // =====================================================================
-  //  PLANILHA COM DASHBOARD (ExcelJS)
+  //  PLANILHA COM FÓRMULAS (ExcelJS) — tudo calculado a partir da aba Pedidos
   // =====================================================================
   const COR = { escuro:'FF1F2937', azul:'FF1F6FEB', verde:'FF1A8F4C', laranja:'FFD97706', vermelho:'FFC8102E',
-                cinza:'FFF3F4F6', borda:'FFD1D5DB', branco:'FFFFFFFF', azulClaro:'FFE8F0FE', verdeClaro:'FFECFDF3', laranjaClaro:'FFFFF7ED' };
-  const FMT = { money:'"R$" #,##0.00', num:'#,##0.0', vol:'#,##0.000', int:'#,##0', pct:'0.0%' };
+                cinza:'FFF3F4F6', borda:'FFD1D5DB', branco:'FFFFFFFF', azulClaro:'FFE8F0FE', verdeClaro:'FFECFDF3',
+                laranjaClaro:'FFFFF7ED', amarelo:'FFFFF3C4' };
+  const FMT = { money:'"R$" #,##0.00', num:'#,##0.0', vol:'#,##0.000', int:'#,##0', pct:'0.0%', data:'dd/mm/yyyy' };
+  const PEND = '(Pendente)';
 
-  function grafico(titulo, itens, fmtVal, cor){
-    // desenha barras horizontais num canvas e devolve base64 PNG
-    try{
-      const W = 760, rowH = 26, top = 46, h = top + itens.length * rowH + 16;
-      const cv = document.createElement('canvas');
-      const sc = 2; cv.width = W * sc; cv.height = h * sc;
-      const g = cv.getContext && cv.getContext('2d');
-      if(!g) return null;
-      g.scale(sc, sc);
-      g.fillStyle = '#ffffff'; g.fillRect(0,0,W,h);
-      g.fillStyle = '#1f2937'; g.font = 'bold 15px Segoe UI, Arial'; g.fillText(titulo, 14, 26);
-      const labW = 230, valW = 130, barW = W - labW - valW - 30;
-      const max = Math.max(1, ...itens.map(i => i.v));
-      itens.forEach((it, i) => {
-        const y = top + i * rowH;
-        g.fillStyle = '#374151'; g.font = '12px Segoe UI, Arial';
-        let lab = it.l; while(g.measureText(lab).width > labW - 10 && lab.length > 3) lab = lab.slice(0,-2);
-        if(lab !== it.l) lab += '…';
-        g.textAlign = 'right'; g.fillText(lab, labW, y + 15);
-        g.fillStyle = '#eef2f7'; g.fillRect(labW + 8, y + 4, barW, 16);
-        g.fillStyle = it.cor || cor; g.fillRect(labW + 8, y + 4, Math.max(2, barW * it.v / max), 16);
-        g.textAlign = 'left'; g.fillStyle = '#111827'; g.font = 'bold 12px Segoe UI, Arial';
-        g.fillText(fmtVal(it.v), labW + 14 + barW, y + 15);
-      });
-      return { base64: cv.toDataURL('image/png'), w: W, h };
-    }catch(e){ return null; }
+  function colL(n){ let s = ''; while(n > 0){ const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
+  function F(formula, result){ return result === undefined ? { formula } : { formula, result }; }
+  function aba(nome){ return "'" + nome.replace(/'/g, "''") + "'"; }
+  function dataBR(s){
+    const m = String(s || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    return m ? new Date(Date.UTC(+m[3], +m[2] - 1, +m[1])) : (s || '');
   }
-
+  function bordaFina(cell){
+    const b = { style:'thin', color:{ argb:COR.borda } };
+    cell.border = { top:b, bottom:b, left:b, right:b };
+  }
   function estiloCab(cell, cor){
-    cell.font = { bold:true, color:{argb:COR.branco}, size:11 };
-    cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:cor || COR.escuro} };
+    cell.font = { bold:true, color:{ argb:COR.branco }, size:10 };
+    cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb: cor || COR.escuro } };
     cell.alignment = { vertical:'middle', horizontal:'center', wrapText:true };
-    cell.border = { top:{style:'thin',color:{argb:COR.borda}}, bottom:{style:'thin',color:{argb:COR.borda}},
-                    left:{style:'thin',color:{argb:COR.borda}}, right:{style:'thin',color:{argb:COR.borda}} };
+    bordaFina(cell);
   }
-  function borda(cell){
-    cell.border = { top:{style:'thin',color:{argb:COR.borda}}, bottom:{style:'thin',color:{argb:COR.borda}},
-                    left:{style:'thin',color:{argb:COR.borda}}, right:{style:'thin',color:{argb:COR.borda}} };
+  function cabecalhoAba(ws, titulo, sub){
+    ws.getCell('A1').value = titulo;
+    ws.getCell('A1').font = { bold:true, size:14, color:{ argb:COR.escuro } };
+    ws.getCell('A2').value = sub || '';
+    ws.getCell('A2').font = { italic:true, size:9, color:{ argb:'FF6B7280' } };
   }
 
-  // tabela manual (para o dashboard): cols = [{h, k, fmt, w}], retorna próxima linha livre
-  function tabelaManual(ws, linha, col, titulo, cols, dados, total, corCab){
-    const tc = ws.getCell(linha, col);
-    ws.mergeCells(linha, col, linha, col + cols.length - 1);
-    tc.value = titulo; tc.font = { bold:true, size:12, color:{argb:COR.escuro} };
-    linha++;
-    cols.forEach((c, i) => { const cell = ws.getCell(linha, col + i); cell.value = c.h; estiloCab(cell, corCab); });
-    ws.getRow(linha).height = 30;
-    linha++;
-    dados.forEach((d, r) => {
-      cols.forEach((c, i) => {
-        const cell = ws.getCell(linha, col + i);
-        cell.value = d[c.k]; if(c.fmt) cell.numFmt = c.fmt; borda(cell);
-        if(r % 2) cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COR.cinza} };
-        if(i === 0) cell.alignment = { wrapText:false };
-      });
-      linha++;
-    });
-    if(total){
-      cols.forEach((c, i) => {
-        const cell = ws.getCell(linha, col + i);
-        cell.value = total[c.k] != null ? total[c.k] : ''; if(c.fmt) cell.numFmt = c.fmt;
-        cell.font = { bold:true }; borda(cell);
-        cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COR.azulClaro} };
-      });
+  // Bloco de tabela formatada. gen(linha, j, r1, r2) devolve os valores da linha; tot(r1, r2) devolve a linha de total.
+  function bloco(ws, linha, col, titulo, cols, qtd, gen, tot, corCab){
+    if(titulo){
+      ws.mergeCells(linha, col, linha, col + cols.length - 1);
+      const t = ws.getCell(linha, col);
+      t.value = titulo; t.font = { bold:true, size:12, color:{ argb:COR.escuro } };
       linha++;
     }
-    return linha;
-  }
-
-  // tabela nativa do Excel com filtro, em aba própria
-  function abaTabela(wb, nome, nomeTabela, cols, dados, opts){
-    opts = opts || {};
-    const ws = wb.addWorksheet(nome, { properties:{ tabColor:{argb: opts.tab || COR.azul} }, views:[{ state:'frozen', ySplit: 3, showGridLines:false }] });
-    ws.getCell('A1').value = opts.titulo || nome;
-    ws.getCell('A1').font = { bold:true, size:14, color:{argb:COR.escuro} };
-    ws.getCell('A2').value = opts.sub || '';
-    ws.getCell('A2').font = { italic:true, size:10, color:{argb:'FF6B7280'} };
-    cols.forEach((c, i) => { ws.getColumn(i + 1).width = c.w || 14; });
-    if(!dados.length){ ws.getCell('A4').value = 'Sem dados.'; return ws; }
-    ws.addTable({
-      name: nomeTabela, ref: 'A3', headerRow: true, totalsRow: !!opts.totais,
-      style: { theme: opts.tema || 'TableStyleMedium2', showRowStripes: true },
-      columns: cols.map(c => ({
-        name: c.h, filterButton: true,
-        totalsRowFunction: opts.totais ? (c.tot || 'none') : undefined,
-        totalsRowLabel: opts.totais && c.totLabel ? c.totLabel : undefined
-      })),
-      rows: dados.map(d => cols.map(c => d[c.k] == null ? '' : d[c.k]))
-    });
-    cols.forEach((c, i) => { if(c.fmt) ws.getColumn(i + 1).numFmt = c.fmt; });
-    ws.getRow(3).height = 30;
-    ws.getRow(3).alignment = { vertical:'middle', wrapText:true };
-    (opts.barras || []).forEach(k => {
-      const i = cols.findIndex(c => c.k === k); if(i < 0) return;
-      const L = String.fromCharCode(65 + i);
-      ws.addConditionalFormatting({
-        ref: `${L}4:${L}${3 + dados.length}`,
-        rules: [{ type:'colorScale', priority:1, cfvo:[{type:'min'},{type:'max'}],
-                  color:[{argb:'FFFFFFFF'},{argb: opts.corBarra || 'FF8DB4E2'}] }]
+    cols.forEach((c, i) => { const cell = ws.getCell(linha, col + i); cell.value = c.h; estiloCab(cell, corCab); });
+    ws.getRow(linha).height = 28;
+    const cab = linha;
+    const r1 = linha + 1, r2 = linha + qtd;
+    for(let j = 0; j < qtd; j++){
+      const r = r1 + j;
+      gen(r, j, r1, r2).forEach((v, i) => {
+        const cell = ws.getCell(r, col + i), c = cols[i];
+        cell.value = v;
+        if(c.fmt) cell.numFmt = c.fmt;
+        bordaFina(cell);
+        if(j % 2) cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:COR.cinza } };
+        if(c.bar) cell.font = { color:{ argb:c.bar }, size:9 };
+        if(c.center) cell.alignment = { horizontal:'center' };
       });
-    });
-    return ws;
-  }
-
-  function resumoPor(lista, k){
-    const total = lista.length || 1;
-    return Array.from(agrupar(lista, k).entries()).map(([g,l]) => {
-      const ok = l.filter(p => p.motivo).length;
-      return { g, pedidos:l.length, clientes:distintos(l,'cliente'), municipios:distintos(l,'cidade'),
-               ok, pend:l.length - ok, pctJust: l.length ? ok / l.length : 0, pctTotal: l.length / total,
-               peso:soma(l,'peso'), valor:soma(l,'valor'), volume:soma(l,'volume'),
-               motivoPrinc: (() => { const m = Array.from(agrupar(l.filter(p=>p.motivo),'motivo').entries()).sort((a,b)=>b[1].length-a[1].length); return m.length ? m[0][0] : '(pendente)'; })() };
-    }).sort((a,b) => b.pedidos - a.pedidos || b.valor - a.valor);
+    }
+    let fim = r2 + 1;
+    if(tot){
+      tot(r1, r2).forEach((v, i) => {
+        const cell = ws.getCell(fim, col + i), c = cols[i];
+        cell.value = v; if(c.fmt) cell.numFmt = c.fmt;
+        cell.font = { bold:true }; bordaFina(cell);
+        cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:COR.azulClaro } };
+      });
+      fim++;
+    }
+    return { cab, r1, r2, fim };
   }
 
   async function gerarPlanilha(){
-    const L = st.pedidos;
+    const L = st.pedidos, n = L.length;
+    const LAST = Math.max(3 + n + 500, 600);       // faixa das fórmulas (permite incluir linhas novas)
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Justificativa de Pedidos'; wb.created = new Date();
+    wb.calcProperties = { fullCalcOnLoad: true };
     const sessao = (L.find(p => p.sessao) || {}).sessao || '';
     const gerado = agora();
-    const ok = L.filter(p => p.motivo).length;
-    const comMotivo = L.map(p => Object.assign({}, p, { motivoX: p.motivo || '(Pendente)', status: p.motivo ? 'Justificado' : 'Pendente' }));
+    const pendL = L.filter(p => !p.motivo);
+    const ok = n - pendL.length;
+    const listaMot = Array.from(new Set(st.motivos.concat(L.map(p => p.motivo).filter(Boolean))));
+    const qtdMot = m => L.filter(p => p.motivo === m).length;
+    const motOrd = listaMot.slice().sort((a,b) => qtdMot(b) - qtdMot(a));   // motivos reais, mais usados primeiro
+    const motAll = motOrd.concat([PEND]);
+    const muns = Array.from(agrupar(L, 'cidade').entries()).sort((a,b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+    const clis = Array.from(agrupar(L, 'cliente').entries()).sort((a,b) => soma(b[1],'valor') - soma(a[1],'valor'));
 
-    // ---------------- DASHBOARD ----------------
-    const ws = wb.addWorksheet('Dashboard', { properties:{ tabColor:{argb:COR.vermelho} }, views:[{ showGridLines:false }] });
-    ws.getColumn(1).width = 2;
-    for(let c = 2; c <= 15; c++) ws.getColumn(c).width = 14;
+    const opView = ySplit => [{ state:'frozen', ySplit, showGridLines:false }];
+    const wsD  = wb.addWorksheet('Dashboard',          { properties:{ tabColor:{ argb:COR.vermelho } }, views:[{ showGridLines:false }] });
+    const wsP  = wb.addWorksheet('Pedidos',            { properties:{ tabColor:{ argb:COR.escuro } }, views:[{ state:'frozen', ySplit:3, xSplit:2, showGridLines:false }] });
+    const wsMo = wb.addWorksheet('Por Motivo',         { properties:{ tabColor:{ argb:COR.verde } }, views:opView(3) });
+    const wsCl = wb.addWorksheet('Por Cliente',        { properties:{ tabColor:{ argb:COR.laranja } }, views:opView(3) });
+    const wsMx = wb.addWorksheet('Município x Motivo', { properties:{ tabColor:{ argb:'FF7C3AED' } }, views:[{ state:'frozen', ySplit:3, xSplit:1, showGridLines:false }] });
+    const wsLi = wb.addWorksheet('Listas',             { properties:{ tabColor:{ argb:'FF9CA3AF' } } });
 
-    ws.mergeCells('B1:O1');
+    // ======================= PEDIDOS (base) =======================
+    const PC = [
+      {k:'pedido',  h:'Pedido', w:13},
+      {k:'cliente', h:'Cliente', w:42},
+      {k:'cidade',  h:'Município', w:20},
+      {k:'valor',   h:'Valor (R$)', w:14, fmt:FMT.money},
+      {k:'peso',    h:'Peso (kg)', w:11, fmt:FMT.num},
+      {k:'volume',  h:'Volume (m³)', w:11, fmt:FMT.vol},
+      {k:'itens',   h:'Itens', w:8, fmt:FMT.int},
+      {k:'termino', h:'Data término', w:12, fmt:FMT.data},
+      {k:'status',  h:'Status', w:13},
+      {k:'motivo',  h:'Motivo', w:38},
+      {k:'obs',     h:'Observação', w:36},
+      {k:'instr',   h:'Instruções especiais', w:50},
+      {k:'sessao',  h:'Sessão', w:44},
+      {k:'gerenciado', h:'Gerenciado por', w:22}
+    ];
+    const C = {}; PC.forEach((c, i) => { C[c.k] = colL(i + 1); });
+    const rg = k => `Pedidos!$${C[k]}$4:$${C[k]}$${LAST}`;
+    const local = k => `${C[k]}4:${C[k]}${LAST}`;
+
+    PC.forEach((c, i) => { wsP.getColumn(i + 1).width = c.w; });
+    wsP.getCell('A1').value = 'PEDIDOS FORA DA ROTEIRIZAÇÃO';
+    wsP.getCell('A1').font = { bold:true, size:14, color:{ argb:COR.escuro } };
+    wsP.getCell('C1').value = (sessao ? 'Sessão: ' + sessao + '   |   ' : '') + 'Gerado em ' + gerado +
+      '   |   Altere o MOTIVO aqui: o dashboard e os resumos recalculam sozinhos.';
+    wsP.getCell('C1').font = { italic:true, size:9, color:{ argb:'FF6B7280' } };
+
+    // linha 2: totais que respeitam o filtro
+    const t2 = (ref, v, f) => { const c = wsP.getCell(ref); c.value = v; c.numFmt = f; c.font = { bold:true, color:{ argb:COR.escuro } };
+      c.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:COR.azulClaro } }; bordaFina(c); };
+    t2(`${C.pedido}2`, F(`SUBTOTAL(103,${local('pedido')})`, n), '0 "ped."');
+    const lb = wsP.getCell(`${C.cliente}2`);
+    lb.value = 'TOTAL VISÍVEL (respeita o filtro) →'; lb.font = { bold:true, size:9, color:{ argb:'FF6B7280' } }; lb.alignment = { horizontal:'right' };
+    ['valor','peso','volume','itens'].forEach(k => t2(`${C[k]}2`, F(`SUBTOTAL(109,${local(k)})`, soma(L,k)), PC.find(c => c.k === k).fmt));
+    t2(`${C.status}2`, F(`COUNTIFS(${local('pedido')},"<>",${local('motivo')},"")`, pendL.length), '0 "pend."');
+
+    const ped = L.slice().sort((a,b) => a.cidade.localeCompare(b.cidade) || a.cliente.localeCompare(b.cliente) || String(a.pedido).localeCompare(String(b.pedido)));
+    const linhasPed = ped.map((p, i) => {
+      const r = 4 + i;
+      return PC.map(c => {
+        if(c.k === 'status') return F(`IF(${C.pedido}${r}="","",IF(${C.motivo}${r}="","Pendente","Justificado"))`, p.motivo ? 'Justificado' : 'Pendente');
+        if(c.k === 'termino') return dataBR(p.termino);
+        const v = p[c.k];
+        return v == null ? '' : v;
+      });
+    });
+    if(linhasPed.length){
+      wsP.addTable({
+        name:'TbPedidos', ref:'A3', headerRow:true, totalsRow:false,
+        style:{ theme:'TableStyleMedium2', showRowStripes:true },
+        columns: PC.map(c => ({ name:c.h, filterButton:true })),
+        rows: linhasPed
+      });
+    }
+    PC.forEach((c, i) => { if(c.fmt) for(let r = 4; r <= 3 + n; r++) wsP.getCell(r, i + 1).numFmt = c.fmt; });
+    wsP.getRow(3).height = 30;
+    wsP.getRow(3).alignment = { vertical:'middle', wrapText:true };
+
+    // lista suspensa de motivos (lê a aba Listas — dá para incluir motivos novos lá)
+    const listaRef = 'OFFSET(Listas!$A$2,0,0,MAX(1,COUNTA(Listas!$A:$A)-1),1)';
+    for(let r = 4; r <= 3 + n + 300; r++){
+      wsP.getCell(`${C.motivo}${r}`).dataValidation = {
+        type:'list', allowBlank:true, formulae:[listaRef],
+        showErrorMessage:true, errorStyle:'warning',
+        errorTitle:'Motivo fora da lista', error:'Este motivo não está na aba Listas. Usar mesmo assim?'
+      };
+    }
+    wsP.addConditionalFormatting({ ref:`${C.status}4:${C.status}${LAST}`, rules:[
+      { type:'expression', priority:1, formulae:[`$${C.status}4="Pendente"`],
+        style:{ font:{ bold:true, color:{ argb:COR.laranja } }, fill:{ type:'pattern', pattern:'solid', bgColor:{ argb:COR.laranjaClaro } } } },
+      { type:'expression', priority:2, formulae:[`$${C.status}4="Justificado"`],
+        style:{ font:{ bold:true, color:{ argb:COR.verde } }, fill:{ type:'pattern', pattern:'solid', bgColor:{ argb:COR.verdeClaro } } } }
+    ]});
+    wsP.addConditionalFormatting({ ref:`${C.motivo}4:${C.motivo}${LAST}`, rules:[
+      { type:'expression', priority:3, formulae:[`AND($${C.pedido}4<>"",$${C.motivo}4="")`],
+        style:{ fill:{ type:'pattern', pattern:'solid', bgColor:{ argb:COR.amarelo } } } }
+    ]});
+
+    // ======================= LISTAS =======================
+    wsLi.getColumn(1).width = 44; wsLi.getColumn(3).width = 70;
+    estiloCab(wsLi.getCell('A1'), COR.escuro); wsLi.getCell('A1').value = 'Motivos';
+    listaMot.forEach((m, i) => { const c = wsLi.getCell(2 + i, 1); c.value = m; bordaFina(c); });
+    wsLi.getCell('C1').value = 'Inclua novos motivos no fim da coluna A: eles aparecem na lista suspensa da aba Pedidos.';
+    wsLi.getCell('C1').font = { italic:true, color:{ argb:'FF6B7280' } };
+    wsLi.getCell('C2').value = 'Para um motivo novo aparecer nos resumos, inclua também uma linha na aba "Por Motivo" (copie a linha de cima).';
+    wsLi.getCell('C2').font = { italic:true, color:{ argb:'FF6B7280' } };
+
+    // ======================= POR MOTIVO =======================
+    cabecalhoAba(wsMo, 'Resumo por motivo', 'Fórmulas sobre a aba Pedidos (CONT.SES / SOMASES)');
+    [40, 11, 11, 13, 16, 34].forEach((w, i) => wsMo.getColumn(i + 1).width = w);
+    const colsMo = [ {h:'Motivo'}, {h:'Pedidos', fmt:FMT.int}, {h:'% do total', fmt:FMT.pct},
+                     {h:'Peso (kg)', fmt:FMT.num}, {h:'Valor (R$)', fmt:FMT.money}, {h:'Gráfico', bar:'FF1F6FEB'} ];
+    const BMo = bloco(wsMo, 3, 1, null, colsMo, motAll.length, (r, j, r1, r2) => {
+      const m = motAll[j], pend = m === PEND;
+      const lst = pend ? pendL : L.filter(p => p.motivo === m);
+      const crit = pend ? `${rg('pedido')},"<>",${rg('motivo')},""` : `${rg('motivo')},$A${r}`;
+      return [
+        m,
+        F(pend ? `COUNTIFS(${crit})` : `COUNTIF(${crit})`, lst.length),
+        F(`IFERROR(B${r}/B$${r2 + 1},0)`, n ? lst.length / n : 0),
+        F(`SUMIFS(${rg('peso')},${crit})`, soma(lst,'peso')),
+        F(`SUMIFS(${rg('valor')},${crit})`, soma(lst,'valor')),
+        F(`REPT("█",IFERROR(ROUND(B${r}/MAX(B$${r1}:B$${r2})*30,0),0))`)
+      ];
+    }, (r1, r2) => ['TOTAL', F(`SUM(B${r1}:B${r2})`, n), F(`SUM(C${r1}:C${r2})`, n ? 1 : 0),
+                    F(`SUM(D${r1}:D${r2})`, soma(L,'peso')), F(`SUM(E${r1}:E${r2})`, soma(L,'valor')), ''], COR.verde);
+    const pendRowMo = BMo.r2;   // linha "(Pendente)"
+    wsMo.getCell(`A${pendRowMo}`).font = { italic:true, bold:true, color:{ argb:COR.laranja } };
+
+    // ======================= MUNICÍPIO x MOTIVO =======================
+    cabecalhoAba(wsMx, 'Matriz município x motivo', 'Quantidade de pedidos (fórmulas)');
+    const nMot = motOrd.length;
+    const lastMotCol = colL(1 + nMot), pendCol = colL(2 + nMot), totCol = colL(3 + nMot);
+    wsMx.getColumn(1).width = 24;
+    for(let i = 2; i <= 3 + nMot; i++) wsMx.getColumn(i).width = 13;
+    const colsMx = [{h:'Município'}].concat(motOrd.map(m => ({h:m, fmt:'#,##0;-#,##0;""'})))
+      .concat([{h:PEND, fmt:'#,##0;-#,##0;""'}, {h:'Total', fmt:FMT.int}]);
+    const BMx = bloco(wsMx, 3, 1, null, colsMx, muns.length, (r, j) => {
+      const [mun, l] = muns[j];
+      const arr = [mun];
+      motOrd.forEach((m, i) => arr.push(F(`COUNTIFS(${rg('cidade')},$A${r},${rg('motivo')},${colL(i + 2)}$3)`, l.filter(p => p.motivo === m).length)));
+      arr.push(F(`COUNTIFS(${rg('cidade')},$A${r},${rg('motivo')},"")`, l.filter(p => !p.motivo).length));
+      arr.push(F(`COUNTIF(${rg('cidade')},$A${r})`, l.length));
+      return arr;
+    }, (r1, r2) => ['TOTAL'].concat(colsMx.slice(1).map((c, i) => {
+      const L2 = colL(i + 2);
+      return F(`SUM(${L2}${r1}:${L2}${r2})`);
+    })), 'FF7C3AED');
+    wsMx.getRow(3).height = 60;
+    if(muns.length){
+      wsMx.addConditionalFormatting({ ref:`B${BMx.r1}:${lastMotCol}${BMx.r2}`,
+        rules:[{ type:'colorScale', priority:1, cfvo:[{type:'num', value:0},{type:'max'}], color:[{argb:'FFFFFFFF'},{argb:'FF63BE7B'}] }] });
+      wsMx.addConditionalFormatting({ ref:`${pendCol}${BMx.r1}:${pendCol}${BMx.r2}`,
+        rules:[{ type:'colorScale', priority:2, cfvo:[{type:'num', value:0},{type:'max'}], color:[{argb:'FFFFFFFF'},{argb:'FFF8696B'}] }] });
+    }
+
+    const mx = aba('Município x Motivo');
+
+    // ======================= POR CLIENTE =======================
+    cabecalhoAba(wsCl, 'Resumo por cliente', 'Ordenado por valor');
+    [44, 22, 10, 11, 12, 15, 12, 28].forEach((w, i) => wsCl.getColumn(i + 1).width = w);
+    const colsCl = [ {h:'Cliente'}, {h:'Município'}, {h:'Pedidos', fmt:FMT.int}, {h:'Pendentes', fmt:FMT.int},
+                     {h:'Peso (kg)', fmt:FMT.num}, {h:'Valor (R$)', fmt:FMT.money}, {h:'Situação', center:true},
+                     {h:'Gráfico (valor)', bar:'FFC8102E'} ];
+    const BCl = bloco(wsCl, 3, 1, null, colsCl, clis.length, (r, j, r1, r2) => {
+      const [cli, l] = clis[j];
+      const pend = l.filter(p => !p.motivo).length;
+      return [
+        cli, l[0].cidade,
+        F(`COUNTIF(${rg('cliente')},$A${r})`, l.length),
+        F(`COUNTIFS(${rg('cliente')},$A${r},${rg('motivo')},"")`, pend),
+        F(`SUMIFS(${rg('peso')},${rg('cliente')},$A${r})`, soma(l,'peso')),
+        F(`SUMIFS(${rg('valor')},${rg('cliente')},$A${r})`, soma(l,'valor')),
+        F(`IF(D${r}=0,"OK","Pendente")`, pend ? 'Pendente' : 'OK'),
+        F(`REPT("█",IFERROR(ROUND(F${r}/MAX(F$${r1}:F$${r2})*25,0),0))`)
+      ];
+    }, (r1, r2) => ['TOTAL', '', F(`SUM(C${r1}:C${r2})`, n), F(`SUM(D${r1}:D${r2})`, pendL.length),
+                    F(`SUM(E${r1}:E${r2})`, soma(L,'peso')), F(`SUM(F${r1}:F${r2})`, soma(L,'valor')), '', ''], COR.laranja);
+    if(clis.length){
+      wsCl.addConditionalFormatting({ ref:`G${BCl.r1}:G${BCl.r2}`, rules:[
+        { type:'expression', priority:1, formulae:[`$G${BCl.r1}="Pendente"`], style:{ font:{ bold:true, color:{ argb:COR.laranja } } } },
+        { type:'expression', priority:2, formulae:[`$G${BCl.r1}="OK"`], style:{ font:{ bold:true, color:{ argb:COR.verde } } } }
+      ]});
+    }
+
+    // ======================= DASHBOARD =======================
+    const ws = wsD;
+    const larg = { 1:2, 2:26, 3:13, 4:13, 5:14, 6:13, 7:14, 8:20, 9:36, 10:30 };
+    Object.entries(larg).forEach(([c, w]) => ws.getColumn(+c).width = w);
+
+    ws.mergeCells('B1:J1');
     const t = ws.getCell('B1');
     t.value = 'JUSTIFICATIVA DE PEDIDOS FORA DA ROTEIRIZAÇÃO';
-    t.font = { bold:true, size:18, color:{argb:COR.branco} };
-    t.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COR.escuro} };
-    t.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+    t.font = { bold:true, size:18, color:{ argb:COR.branco } };
+    t.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:COR.escuro } };
+    t.alignment = { vertical:'middle', indent:1 };
     ws.getRow(1).height = 38;
-    ws.mergeCells('B2:O2');
+    ws.mergeCells('B2:J2');
     const s = ws.getCell('B2');
-    s.value = `${sessao ? 'Sessão: ' + sessao + '   |   ' : ''}Gerado em ${gerado}`;
-    s.font = { italic:true, size:10, color:{argb:'FF374151'} };
-    s.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COR.cinza} };
+    s.value = `${sessao ? 'Sessão: ' + sessao + '   |   ' : ''}Gerado em ${gerado}   |   Tudo calculado por fórmulas a partir da aba Pedidos`;
+    s.font = { italic:true, size:9, color:{ argb:'FF374151' } };
+    s.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:COR.cinza } };
     s.alignment = { indent:1 };
 
+    // cartões: B=Pedidos C=Clientes D=Municípios E=Justificados F=Pendentes G=Peso H=Valor I:J=% justificado
+    const distF = k => `SUMPRODUCT((${rg(k)}<>"")/COUNTIF(${rg(k)},${rg(k)}&""))`;
     const tiles = [
-      ['PEDIDOS', L.length, FMT.int, COR.azul],
-      ['CLIENTES', distintos(L,'cliente'), FMT.int, COR.azul],
-      ['MUNICÍPIOS', distintos(L,'cidade'), FMT.int, COR.azul],
-      ['JUSTIFICADOS', ok, FMT.int, COR.verde],
-      ['PENDENTES', L.length - ok, FMT.int, COR.laranja],
-      ['PESO (KG)', soma(L,'peso'), FMT.num, COR.escuro],
-      ['VALOR (R$)', soma(L,'valor'), FMT.money, COR.vermelho]
+      ['PEDIDOS',      F(`COUNTA(${rg('pedido')})`, n), FMT.int, COR.azul, 2, 2],
+      ['CLIENTES',     F(distF('cliente'), distintos(L,'cliente')), FMT.int, COR.azul, 3, 3],
+      ['MUNICÍPIOS',   F(distF('cidade'), distintos(L,'cidade')), FMT.int, COR.azul, 4, 4],
+      ['JUSTIFICADOS', F(`COUNTIFS(${rg('pedido')},"<>",${rg('motivo')},"<>")`, ok), FMT.int, COR.verde, 5, 5],
+      ['PENDENTES',    F(`COUNTIFS(${rg('pedido')},"<>",${rg('motivo')},"")`, pendL.length), FMT.int, COR.laranja, 6, 6],
+      ['PESO (KG)',    F(`SUM(${rg('peso')})`, soma(L,'peso')), FMT.num, COR.escuro, 7, 7],
+      ['VALOR (R$)',   F(`SUM(${rg('valor')})`, soma(L,'valor')), FMT.money, COR.vermelho, 8, 8],
+      ['% JUSTIFICADO', F('IFERROR(E5/B5,0)', n ? ok / n : 0), '0.0%', COR.verde, 9, 10]
     ];
-    tiles.forEach((tl, i) => {
-      const c = 2 + i * 2;
-      ws.mergeCells(4, c, 4, c + 1);
-      ws.mergeCells(5, c, 6, c + 1);
-      const a = ws.getCell(4, c), b = ws.getCell(5, c);
-      a.value = tl[0]; a.font = { bold:true, size:9, color:{argb:COR.branco} };
-      a.fill = { type:'pattern', pattern:'solid', fgColor:{argb:tl[3]} }; a.alignment = { horizontal:'center', vertical:'middle' };
-      b.value = tl[1]; b.numFmt = tl[2]; b.font = { bold:true, size:18, color:{argb:tl[3]} };
-      b.fill = { type:'pattern', pattern:'solid', fgColor:{argb:COR.cinza} }; b.alignment = { horizontal:'center', vertical:'middle' };
-      [a, b].forEach(x => x.border = { left:{style:'thin',color:{argb:COR.branco}}, right:{style:'thin',color:{argb:COR.branco}} });
+    tiles.forEach(tl => {
+      const [lab, val, f, cor, c1, c2] = tl;
+      if(c2 > c1) ws.mergeCells(4, c1, 4, c2);
+      ws.mergeCells(5, c1, 6, c2);
+      const a = ws.getCell(4, c1), b = ws.getCell(5, c1);
+      a.value = lab; a.font = { bold:true, size:9, color:{ argb:COR.branco } };
+      a.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:cor } }; a.alignment = { horizontal:'center', vertical:'middle' };
+      b.value = val; b.numFmt = f; b.font = { bold:true, size:16, color:{ argb:cor } };
+      b.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:COR.cinza } }; b.alignment = { horizontal:'center', vertical:'middle' };
+      const br = { style:'thin', color:{ argb:COR.branco } };
+      [a, b].forEach(x => x.border = { left:br, right:br });
     });
     ws.getRow(4).height = 18; ws.getRow(5).height = 22; ws.getRow(6).height = 22;
-    ws.mergeCells('B7:O7');
-    const pc = ws.getCell('B7');
-    pc.value = L.length ? `${fmt(ok / L.length * 100, 1)}% dos pedidos justificados` : '';
-    pc.font = { bold:true, size:10, color:{argb: ok === L.length ? COR.verde : COR.laranja} };
-    pc.alignment = { horizontal:'right' };
+    // barra de progresso
+    ws.mergeCells('B7:J7');
+    const pb = ws.getCell('B7');
+    pb.value = F(`REPT("█",ROUND(IFERROR(E5/B5,0)*120,0))&REPT("░",120-ROUND(IFERROR(E5/B5,0)*90,0))`);
+    pb.font = { color:{ argb:COR.verde }, size:10 };
 
-    // gráficos
-    const rMot = resumoPor(comMotivo, 'motivoX');
-    const rMun = resumoPor(L, 'cidade');
-    const g1 = grafico('Pedidos por motivo', rMot.map(r => ({ l:r.g, v:r.pedidos, cor: r.g === '(Pendente)' ? '#d97706' : '#1f6feb' })), v => fmt(v,0), '#1f6feb');
-    const g2 = grafico('Valor por município (R$)', rMun.map(r => ({ l:r.g, v:r.valor })), v => 'R$ ' + fmt(v,0), '#c8102e');
-    let linha = 9;
-    const pxRow = 20;
-    let alturaG = 0;
-    if(g1){
-      const id = wb.addImage({ base64: g1.base64, extension:'png' });
-      ws.addImage(id, { tl:{ col:1, row:linha - 1 }, ext:{ width:690, height: g1.h * 690 / g1.w } });
-      alturaG = Math.max(alturaG, g1.h * 690 / g1.w);
+    // resumo por município (fórmulas direto na aba Pedidos; motivo principal vem da matriz)
+    const BdU = bloco(ws, 9, 2, 'Resumo por município',
+      [ {h:'Município'}, {h:'Pedidos', fmt:FMT.int}, {h:'Justificados', fmt:FMT.int}, {h:'Pendentes', fmt:FMT.int},
+        {h:'% justificado', fmt:FMT.pct}, {h:'Peso (kg)', fmt:FMT.num}, {h:'Valor (R$)', fmt:FMT.money},
+        {h:'Motivo principal'}, {h:'Gráfico (pedidos)', bar:'FF1F6FEB'} ],
+      muns.length, (r, j, r1, r2) => {
+        const [mun, l] = muns[j];
+        const pend = l.filter(p => !p.motivo).length;
+        const rMx = BMx.r1 + j;
+        const faixa = `${mx}!$B${rMx}:$${lastMotCol}${rMx}`;
+        const princ = (() => { const m = Array.from(agrupar(l.filter(p => p.motivo),'motivo').entries()).sort((a,b) => b[1].length - a[1].length); return m.length ? m[0][0] : '(pendente)'; })();
+        return [
+          mun,
+          F(`COUNTIF(${rg('cidade')},$B${r})`, l.length),
+          F(`C${r}-E${r}`, l.length - pend),
+          F(`COUNTIFS(${rg('cidade')},$B${r},${rg('motivo')},"")`, pend),
+          F(`IFERROR(D${r}/C${r},0)`, l.length ? (l.length - pend) / l.length : 0),
+          F(`SUMIFS(${rg('peso')},${rg('cidade')},$B${r})`, soma(l,'peso')),
+          F(`SUMIFS(${rg('valor')},${rg('cidade')},$B${r})`, soma(l,'valor')),
+          F(`IF(SUM(${faixa})=0,"(pendente)",INDEX(${mx}!$B$3:$${lastMotCol}$3,MATCH(MAX(${faixa}),${faixa},0)))`, princ),
+          F(`REPT("█",IFERROR(ROUND(C${r}/MAX(C$${r1}:C$${r2})*24,0),0))`)
+        ];
+      },
+      (r1, r2) => ['TOTAL', F(`SUM(C${r1}:C${r2})`, n), F(`SUM(D${r1}:D${r2})`, ok), F(`SUM(E${r1}:E${r2})`, pendL.length),
+                   F(`IFERROR(D${r2 + 1}/C${r2 + 1},0)`, n ? ok / n : 0), F(`SUM(G${r1}:G${r2})`, soma(L,'peso')),
+                   F(`SUM(H${r1}:H${r2})`, soma(L,'valor')), '', ''], COR.escuro);
+    if(muns.length){
+      ws.addConditionalFormatting({ ref:`F${BdU.r1}:F${BdU.r2}`,
+        rules:[{ type:'colorScale', priority:1, cfvo:[{type:'num', value:0},{type:'num', value:1}], color:[{argb:'FFF8696B'},{argb:'FF63BE7B'}] }] });
     }
-    if(g2){
-      const id = wb.addImage({ base64: g2.base64, extension:'png' });
-      ws.addImage(id, { tl:{ col:8, row:linha - 1 }, ext:{ width:690, height: g2.h * 690 / g2.w } });
-      alturaG = Math.max(alturaG, g2.h * 690 / g2.w);
-    }
-    if(alturaG) linha += Math.ceil(alturaG / pxRow) + 2;
-
-    // tabelas resumo lado a lado
-    const colsMot = [
-      {h:'Motivo', k:'g'}, {h:'Pedidos', k:'pedidos', fmt:FMT.int}, {h:'% total', k:'pctTotal', fmt:FMT.pct},
-      {h:'Clientes', k:'clientes', fmt:FMT.int}, {h:'Peso (kg)', k:'peso', fmt:FMT.num}, {h:'Valor (R$)', k:'valor', fmt:FMT.money}
-    ];
-    const totMot = { g:'TOTAL', pedidos:L.length, pctTotal:1, clientes:distintos(L,'cliente'), peso:soma(L,'peso'), valor:soma(L,'valor') };
-    const fimA = tabelaManual(ws, linha, 2, 'Resumo por motivo', colsMot, rMot, totMot, COR.escuro);
-    const colsMun = [
-      {h:'Município', k:'g'}, {h:'Pedidos', k:'pedidos', fmt:FMT.int}, {h:'Pendentes', k:'pend', fmt:FMT.int},
-      {h:'% justif.', k:'pctJust', fmt:FMT.pct}, {h:'Peso (kg)', k:'peso', fmt:FMT.num}, {h:'Valor (R$)', k:'valor', fmt:FMT.money}
-    ];
-    const totMun = { g:'TOTAL', pedidos:L.length, pend:L.length - ok, pctJust: L.length ? ok / L.length : 0, peso:soma(L,'peso'), valor:soma(L,'valor') };
-    const fimB = tabelaManual(ws, linha, 9, 'Resumo por município', colsMun, rMun, totMun, COR.escuro);
-    ws.getColumn(2).width = 34; ws.getColumn(9).width = 24;
-    linha = Math.max(fimA, fimB) + 2;
-
-    // top 10 clientes por valor
-    const rCli = resumoPor(L, 'cliente').sort((a,b) => b.valor - a.valor).slice(0, 10)
-      .map(r => Object.assign(r, { cidadeCli: (L.find(p => p.cliente === r.g) || {}).cidade }));
-    tabelaManual(ws, linha, 2, 'Top 10 clientes por valor', [
-      {h:'Cliente', k:'g'}, {h:'Município', k:'cidadeCli'}, {h:'Pedidos', k:'pedidos', fmt:FMT.int},
-      {h:'Peso (kg)', k:'peso', fmt:FMT.num}, {h:'Valor (R$)', k:'valor', fmt:FMT.money}, {h:'Motivo principal', k:'motivoPrinc'}
-    ], rCli, null, COR.vermelho);
-    ws.getColumn(3).width = 18; ws.getColumn(7).width = 30;
     ws.pageSetup = { orientation:'landscape', fitToPage:true, fitToWidth:1, fitToHeight:0, paperSize:9 };
-
-    // ---------------- PEDIDOS ----------------
-    const colsPed = [
-      {h:'Pedido', k:'pedido', w:13}, {h:'Cliente', k:'cliente', w:40, totLabel:'TOTAL'}, {h:'Município', k:'cidade', w:20},
-      {h:'Valor (R$)', k:'valor', fmt:FMT.money, w:14, tot:'sum'}, {h:'Peso (kg)', k:'peso', fmt:FMT.num, w:11, tot:'sum'},
-      {h:'Volume (m³)', k:'volume', fmt:FMT.vol, w:11, tot:'sum'}, {h:'Itens', k:'itens', fmt:FMT.int, w:8, tot:'sum'},
-      {h:'Cód. rota', k:'codrota', w:10}, {h:'Data término', k:'termino', w:12},
-      {h:'Status', k:'status', w:12}, {h:'Motivo', k:'motivo', w:36}, {h:'Observação', k:'obs', w:36},
-      {h:'Instruções especiais', k:'instr', w:50}, {h:'Estado da ordem', k:'estado', w:14},
-      {h:'Filial', k:'filial', w:7}, {h:'Tipo', k:'tipo', w:9}, {h:'Classe', k:'classe', w:8},
-      {h:'Sessão', k:'sessao', w:42}, {h:'Gerenciado por', k:'gerenciado', w:22},
-      {h:'Incluído em', k:'incluido', w:16}, {h:'Atualizado em', k:'atualizado', w:16}
-    ];
-    const ped = comMotivo.slice().sort((a,b) => a.cidade.localeCompare(b.cidade) || a.cliente.localeCompare(b.cliente) || String(a.pedido).localeCompare(String(b.pedido)));
-    const wsP = abaTabela(wb, 'Pedidos', 'TbPedidos', colsPed, ped,
-      { titulo:'Pedidos fora da roteirização', sub:`${L.length} pedidos · ${sessao}`, totais:true, tab:COR.escuro });
-    const iSt = colsPed.findIndex(c => c.k === 'status') + 1;
-    ped.forEach((p, i) => {
-      const cell = wsP.getCell(4 + i, iSt);
-      cell.font = { bold:true, color:{argb: p.motivo ? COR.verde : COR.laranja} };
-    });
-
-    // ---------------- RESUMOS ----------------
-    abaTabela(wb, 'Por Motivo', 'TbMotivo', [
-      {h:'Motivo', k:'g', w:40, totLabel:'TOTAL'}, {h:'Pedidos', k:'pedidos', fmt:FMT.int, w:11, tot:'sum'},
-      {h:'% do total', k:'pctTotal', fmt:FMT.pct, w:11, tot:'sum'}, {h:'Clientes', k:'clientes', fmt:FMT.int, w:11},
-      {h:'Municípios', k:'municipios', fmt:FMT.int, w:11}, {h:'Peso (kg)', k:'peso', fmt:FMT.num, w:13, tot:'sum'},
-      {h:'Valor (R$)', k:'valor', fmt:FMT.money, w:16, tot:'sum'}
-    ], rMot, { titulo:'Resumo por motivo', sub:'Quantidade de pedidos, peso e valor por motivo', totais:true, barras:['pedidos','valor'], tab:COR.verde });
-
-    abaTabela(wb, 'Por Município', 'TbMunicipio', [
-      {h:'Município', k:'g', w:26, totLabel:'TOTAL'}, {h:'Pedidos', k:'pedidos', fmt:FMT.int, w:11, tot:'sum'},
-      {h:'Clientes', k:'clientes', fmt:FMT.int, w:11}, {h:'Justificados', k:'ok', fmt:FMT.int, w:12, tot:'sum'},
-      {h:'Pendentes', k:'pend', fmt:FMT.int, w:11, tot:'sum'}, {h:'% justificado', k:'pctJust', fmt:FMT.pct, w:13},
-      {h:'Peso (kg)', k:'peso', fmt:FMT.num, w:13, tot:'sum'}, {h:'Valor (R$)', k:'valor', fmt:FMT.money, w:16, tot:'sum'},
-      {h:'Motivo principal', k:'motivoPrinc', w:38}
-    ], rMun, { titulo:'Resumo por município', sub:'Pedidos fora da roteirização por município', totais:true, barras:['pedidos','valor'], tab:COR.azul });
-
-    abaTabela(wb, 'Por Cliente', 'TbCliente', [
-      {h:'Cliente', k:'g', w:44, totLabel:'TOTAL'}, {h:'Município', k:'cidadeCli', w:22}, {h:'Pedidos', k:'pedidos', fmt:FMT.int, w:10, tot:'sum'},
-      {h:'Pendentes', k:'pend', fmt:FMT.int, w:11, tot:'sum'}, {h:'Peso (kg)', k:'peso', fmt:FMT.num, w:12, tot:'sum'},
-      {h:'Valor (R$)', k:'valor', fmt:FMT.money, w:15, tot:'sum'}, {h:'Motivo principal', k:'motivoPrinc', w:38}
-    ], resumoPor(L,'cliente').sort((a,b) => b.valor - a.valor).map(r => Object.assign(r, { cidadeCli:(L.find(p => p.cliente === r.g) || {}).cidade })),
-      { titulo:'Resumo por cliente', sub:'Ordenado por valor', totais:true, barras:['valor'], tab:COR.laranja });
-
-    // matriz município x motivo
-    const motivosUsados = rMot.map(r => r.g);
-    const colsMx = [{h:'Município', k:'g', w:26, totLabel:'TOTAL'}]
-      .concat(motivosUsados.map((m, i) => ({ h: m.slice(0, 60), k:'m' + i, fmt:FMT.int, w:14, tot:'sum' })))
-      .concat([{h:'Total', k:'tot', fmt:FMT.int, w:10, tot:'sum'}]);
-    // nomes de coluna únicos (Excel exige)
-    const vistos = {}; colsMx.forEach(c => { const b = c.h.toLowerCase(); if(vistos[b]){ vistos[b]++; c.h += ' ' + vistos[b]; } else vistos[b] = 1; });
-    const mx = rMun.map(r => {
-      const o = { g:r.g, tot:r.pedidos };
-      const l = comMotivo.filter(p => p.cidade === r.g);
-      motivosUsados.forEach((m, i) => { o['m' + i] = l.filter(p => p.motivoX === m).length || null; });
-      return o;
-    });
-    const wsM = abaTabela(wb, 'Município x Motivo', 'TbMatriz', colsMx, mx,
-      { titulo:'Matriz município x motivo', sub:'Quantidade de pedidos', totais:true, tab:'FF7C3AED', tema:'TableStyleLight9' });
-    if(mx.length && motivosUsados.length){
-      const ult = String.fromCharCode(65 + motivosUsados.length);
-      wsM.addConditionalFormatting({ ref:`B4:${ult}${3 + mx.length}`,
-        rules:[{ type:'colorScale', priority:1, cfvo:[{type:'min'},{type:'max'}], color:[{argb:'FFFFFFFF'},{argb:'FFF8696B'}] }] });
-    }
-
-    // pendentes
-    const pend = ped.filter(p => !p.motivo);
-    if(pend.length){
-      abaTabela(wb, 'Pendentes', 'TbPendentes', colsPed.filter(c => !['status','motivo','obs','atualizado'].includes(c.k)), pend,
-        { titulo:'Pedidos ainda sem justificativa', sub:`${pend.length} pedido(s)`, totais:true, tab:COR.laranja, tema:'TableStyleMedium3' });
-    }
 
     return wb;
   }
